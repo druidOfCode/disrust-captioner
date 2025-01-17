@@ -1,5 +1,3 @@
-// app.rs
-
 use std::sync::{Arc, Mutex};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -10,56 +8,40 @@ use cpal::Stream;
 
 use crate::audio::loopback_capture;
 use crate::config::persistence::Config;
-use crate::diarization::pyannote::DiarizationBackend;
-use crate::diarization::speaker_manager::SpeakerManager;
 use crate::transcription::whisper_integration::TranscriptionBackend;
 
 pub struct CaptionerApp {
-    // Data / backends
-    speaker_manager: Arc<Mutex<SpeakerManager>>,
-    diarization: Arc<Mutex<dyn DiarizationBackend + Send + Sync>>,
+    // We only store transcription backend now
     transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
 
-    // UI state
     is_running: bool,
     available_devices: Vec<cpal::Device>,
     selected_device: Option<usize>,
 
-    // Stream & channels
     stream: Option<Stream>,
     tx: Sender<(String, String)>,
     rx: Receiver<(String, String)>,
 
-    // Live data
     config: Config,
     transcription_history: Vec<(String, String)>,
 }
 
 impl CaptionerApp {
     pub fn new(
-        cc: &eframe::CreationContext<'_>,
-        speaker_manager: Arc<Mutex<SpeakerManager>>,
-        diarization: Arc<Mutex<dyn DiarizationBackend + Send + Sync>>,
+        _cc: &eframe::CreationContext<'_>,
         transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     ) -> Self {
-        // Setup device list
         let host = cpal::default_host();
         let available_devices = match host.devices() {
             Ok(iter) => iter.collect(),
             Err(_) => vec![],
         };
 
-        // Create a channel for capturing (speaker, text) from the audio thread
         let (tx, rx) = unbounded();
-
-        // Load existing config (speaker names, etc.)
         let config = Config::load("config.json");
 
         Self {
-            speaker_manager,
-            diarization,
             transcription,
-
             is_running: false,
             available_devices,
             selected_device: None,
@@ -76,20 +58,13 @@ impl CaptionerApp {
     fn start_capture(&mut self) {
         if let Some(idx) = self.selected_device {
             let device = self.available_devices[idx].clone();
-
-            let diar = Arc::clone(&self.diarization);
             let trans = Arc::clone(&self.transcription);
-            let spk_man = Arc::clone(&self.speaker_manager);
-
-            // We'll clone the tx so we can send from the capture thread
             let sender = self.tx.clone();
+
             let stream_result = loopback_capture::start_audio_capture(
                 device,
-                diar,
                 trans,
-                spk_man,
                 move |speaker, text| {
-                    // push (speaker, text) onto the channel
                     sender.send((speaker, text)).ok();
                 },
             );
@@ -107,7 +82,6 @@ impl CaptionerApp {
     }
 
     fn stop_capture(&mut self) {
-        // Dropping the Stream stops audio
         self.stream = None;
         self.is_running = false;
     }
@@ -115,12 +89,9 @@ impl CaptionerApp {
 
 impl eframe::App for CaptionerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Drain any new transcriptions from the channel
+        // Check for new transcripts
         while let Ok((speaker, text)) = self.rx.try_recv() {
-            // The SpeakerManager might let the user rename speakers; for now we store raw
-            self.transcription_history.push((speaker.clone(), text.clone()));
-
-            // Keep history at a size limit
+            self.transcription_history.push((speaker, text));
             if self.transcription_history.len() > 200 {
                 self.transcription_history.remove(0);
             }
@@ -147,7 +118,7 @@ impl eframe::App for CaptionerApp {
                     });
             });
 
-            // Start/Stop button
+            // Start/Stop
             if ui.button(if self.is_running { "Stop" } else { "Start" }).clicked() {
                 if self.is_running {
                     self.stop_capture();
@@ -157,18 +128,6 @@ impl eframe::App for CaptionerApp {
             }
 
             ui.separator();
-
-            // Show speaker rename UI (example)
-            ui.heading("Speakers");
-            if let Ok(spk_man) = self.speaker_manager.lock() {
-                // If you store speaker ID -> user name in speaker_manager, show them here
-                // (Implementation up to you)
-                // e.g. for each known ID, a text field to rename
-            }
-
-            ui.separator();
-
-            // Transcription history
             ui.heading("Transcription");
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                 for (speaker, text) in &self.transcription_history {
