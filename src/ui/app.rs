@@ -1,14 +1,15 @@
 use eframe::egui;
 use std::sync::{Arc, Mutex};
-use crate::diarization::pyannote::PyannoteIntegration;
-use crate::transcription::whisper_integration::WhisperIntegration;
+use crate::diarization::pyannote::DiarizationBackend;
+use crate::transcription::whisper_integration::TranscriptionBackend;
 use crate::config::persistence::Config;
 use cpal::{Device, traits::{DeviceTrait, HostTrait}};
 use std::collections::HashMap;
 
+#[allow(dead_code)]
 pub struct CaptionerApp {
-    diarization: Arc<Mutex<PyannoteIntegration>>,
-    transcription: Arc<Mutex<WhisperIntegration>>,
+    diarization: Arc<Mutex<dyn DiarizationBackend + Send + Sync>>,
+    transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     current_transcript: String,
     current_speaker: String,
     is_running: bool,
@@ -22,8 +23,8 @@ pub struct CaptionerApp {
 impl CaptionerApp {
     fn new(
         _cc: &eframe::CreationContext<'_>,
-        diarization: Arc<Mutex<PyannoteIntegration>>,
-        transcription: Arc<Mutex<WhisperIntegration>>,
+        diarization: Arc<Mutex<dyn DiarizationBackend + Send + Sync>>,
+        transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     ) -> Self {
         let host = cpal::default_host();
         let available_devices = host.devices()
@@ -125,8 +126,8 @@ impl eframe::App for CaptionerApp {
 }
 
 pub fn start_ui(
-    diarization: Arc<Mutex<PyannoteIntegration>>,
-    transcription: Arc<Mutex<WhisperIntegration>>,
+    diarization: Arc<Mutex<dyn DiarizationBackend + Send + Sync>>,
+    transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     _selected_device: Option<cpal::Device>,
 ) {
     let native_options = eframe::NativeOptions::default();

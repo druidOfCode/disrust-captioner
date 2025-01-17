@@ -8,14 +8,13 @@ pub trait DiarizationBackend: Send + Sync {
 
 pub struct PyannoteIntegration {
     extractor: EmbeddingExtractor,
-    sample_rate: u32,
 }
 
 impl PyannoteIntegration {
-    pub fn new(segmentation_model: &str, sample_rate: u32) -> Self {
+    pub fn new(segmentation_model: &str, _sample_rate: u32) -> Self {
         let extractor = EmbeddingExtractor::new(segmentation_model)
             .expect("Failed to load extractor");
-        PyannoteIntegration { extractor, sample_rate }
+        PyannoteIntegration { extractor }
     }
 }
 
@@ -36,6 +35,6 @@ impl DiarizationBackend for PyannoteIntegration {
     }
 }
 
-pub fn initialize_pyannote(segmentation_model: &str, sample_rate: u32) -> Arc<Mutex<impl DiarizationBackend>> {
+pub fn initialize_pyannote(segmentation_model: &str, sample_rate: u32) -> Arc<Mutex<dyn DiarizationBackend + Send + Sync>> {
     Arc::new(Mutex::new(PyannoteIntegration::new(segmentation_model, sample_rate)))
 }

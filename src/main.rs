@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::error::Error;
 
 mod audio;
 mod diarization;
@@ -6,7 +7,7 @@ mod transcription;
 mod ui;
 mod config;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let speaker_manager = Arc::new(Mutex::new(
         diarization::speaker_manager::SpeakerManager::new()
     ));
@@ -25,14 +26,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let speaker_manager_clone = Arc::clone(&speaker_manager);
     let _stream = audio::loopback_capture::start_audio_capture(
         audio_device,
-        Arc::clone(&diarization),
-        Arc::clone(&transcription),
+        diarization.clone(),
+        transcription.clone(),
         speaker_manager_clone,
         |speaker, text| {
             // Handle new transcription
             println!("{}: {}", speaker, text);
         },
-    )?;
+    );
 
     // Pass a None or Some(device) here after user selection
     let selected_device: Option<cpal::Device> = None; // <- from the UI

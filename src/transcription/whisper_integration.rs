@@ -42,7 +42,7 @@ impl WhisperIntegration {
 }
 
 impl TranscriptionBackend for WhisperIntegration {
-    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn Error + Send>> {
+    fn transcribe_audio(&mut self, audio: &[f32], _sample_rate: u32) -> Result<String, Box<dyn Error + Send>> {
         if audio.is_empty() {
             return Err(Box::new(SimpleError("Empty audio buffer".into())));
         }
@@ -73,6 +73,6 @@ impl TranscriptionBackend for WhisperIntegration {
     }
 }
 
-pub fn initialize_whisper(model_path: &str) -> Arc<Mutex<impl TranscriptionBackend>> {
+pub fn initialize_whisper(model_path: &str) -> Arc<Mutex<dyn TranscriptionBackend + Send + Sync>> {
     Arc::new(Mutex::new(WhisperIntegration::new(model_path)))
 }
