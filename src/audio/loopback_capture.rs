@@ -1,6 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
 use ringbuf::{HeapRb, traits::Split};
+use ringbuf::traits::{Consumer as _, Producer as _};
 use crate::diarization::pyannote::DiarizationBackend;
 use crate::transcription::whisper_integration::TranscriptionBackend;
 use crate::diarization::speaker_manager::SpeakerManager;
