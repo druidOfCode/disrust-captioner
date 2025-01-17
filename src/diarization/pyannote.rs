@@ -35,13 +35,6 @@ impl DiarizationBackend for PyannoteIntegration {
     }
 }
 
-impl EmbeddingExtractor {
-    pub fn extract_i16(&self, audio: &[i16], sample_rate: u32) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-        // Implementation of the extract_i16 method
-        Ok(vec![]) // Placeholder implementation
-    }
-}
-
 pub fn initialize_pyannote(segmentation_model: &str, sample_rate: u32) -> Arc<Mutex<impl DiarizationBackend>> {
     Arc::new(Mutex::new(PyannoteIntegration::new(segmentation_model, sample_rate)))
 }
