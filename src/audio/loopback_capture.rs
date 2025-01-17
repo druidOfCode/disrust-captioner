@@ -64,6 +64,7 @@ pub fn start_audio_capture(
             producer.push_slice(data);
         },
         move |err| eprintln!("Error in audio stream: {}", err),
+        None,
     )?;
 
     stream.play()?;

@@ -20,7 +20,11 @@ pub struct App {
 }
 
 impl App {
-    fn new(diarization: Arc<Mutex<PyannoteIntegration>>, transcription: Arc<Mutex<WhisperIntegration>>) -> Self {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        diarization: Arc<Mutex<PyannoteIntegration>>,
+        transcription: Arc<Mutex<WhisperIntegration>>,
+    ) -> Self {
         let host = cpal::default_host();
         let available_devices = host.output_devices()
             .unwrap_or_default()
@@ -56,12 +60,9 @@ impl App {
     }
 }
 
-impl epi::App for App {
-    fn name(&self) -> &str {
-        "Disrust Captioner"
-    }
-
-    fn update(&mut self, ctx: &egui::Context, _frame: &epi::Frame) {
+// Replace epi::App with eframe::App
+impl eframe::App for App {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Disrust Captioner");
             
@@ -129,8 +130,16 @@ pub fn start_ui(
     transcription: Arc<Mutex<WhisperIntegration>>,
     selected_device: Option<cpal::Device>,
 ) {
-    let app = App::new(diarization, transcription);
     let native_options = eframe::NativeOptions::default();
-    let chosen_device = selected_device.or_else(|| app.get_selected_device());
-    eframe::run_native(Box::new(app), native_options);
+    eframe::run_native(
+        "Disrust Captioner",
+        native_options,
+        Box::new(move |cc| {
+            Box::new(App::new(
+                cc,
+                diarization.clone(),
+                transcription.clone(),
+            ))
+        }),
+    ).expect("Failed to start eframe");
 }
