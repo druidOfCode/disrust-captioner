@@ -5,7 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-struct Config {
+pub struct Config {
     speaker_names: HashMap<String, String>,
 }
 

@@ -1,6 +1,10 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
-use ringbuf::{RingBuffer, Producer, Consumer};
+use ringbuf::traits::Split;
+use ringbuf::producer::Producer;
+use ringbuf::consumer::Consumer;
+use crate::diarization::pyannote::DiarizationBackend;
+use crate::transcription::whisper_integration::TranscriptionBackend;
 use crate::diarization::speaker_manager::SpeakerManager;
 
 const BUFFER_SIZE: usize = 1024 * 16;
@@ -20,35 +24,34 @@ pub fn initialize_audio_device(
 
 pub fn start_audio_capture(
     device: cpal::Device,
-    diarization: Arc<Mutex<PyannoteIntegration>>,
-    transcription: Arc<Mutex<WhisperIntegration>>,
+    diarization: Arc<Mutex<dyn DiarizationBackend + Send + Sync>>,
+    transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     speaker_manager: Arc<Mutex<SpeakerManager>>,
     callback: impl Fn(String, String) + Send + 'static,
-) -> Result<cpal::Stream, cpal::BuildStreamError> {
-    let config = device.default_output_config()?;
-    let ring_buffer = RingBuffer::<f32>::new(BUFFER_SIZE);
+) -> Result<cpal::Stream, Box<dyn std::error::Error>> {
+    let config = device.default_output_config().map_err(Box::new)?;
+    let sample_rate = config.sample_rate().0;
+    let ring_buffer = ringbuf::HeapRb::<f32>::new(BUFFER_SIZE);  // Changed to f32
     let (mut producer, mut consumer) = ring_buffer.split();
 
-    // Process audio in a separate thread
     std::thread::spawn(move || {
         let mut buffer = vec![0.0f32; PROCESS_INTERVAL];
         loop {
-            if let Ok(count) = consumer.pop_slice(&mut buffer) {
-                if count >= PROCESS_INTERVAL {
-                    if let Ok(diar) = diarization.lock() {
-                        if let Ok(segments) = diar.segment_audio(&buffer) {
-                            // Process each segment
-                            for segment in segments {
-                                let speaker_embedding = diar.embed_speaker(&buffer[segment.start..segment.end]);
-                                let speaker_id = speaker_manager.lock()
-                                    .unwrap()
-                                    .identify_speaker(&speaker_embedding)
-                                    .unwrap_or_else(|| format!("Speaker_{}", segment.speaker_id));
+            let count = consumer.pop_slice(&mut buffer);
+            if count >= PROCESS_INTERVAL {
+                if let Ok(diar) = diarization.lock() {
+                    if let Ok(segments) = diar.segment_audio(&buffer) {
+                        for segment in segments {
+                            let float_samples: Vec<f32> = segment.samples.iter().map(|&x| x as f32).collect();
+                            let speaker_embedding = diar.embed_speaker(&float_samples);
+                            let speaker_id = speaker_manager.lock()
+                                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?
+                                .identify_speaker(&speaker_embedding);
 
-                                if let Ok(trans) = transcription.lock() {
-                                    if let Ok(text) = trans.transcribe_audio(&buffer[segment.start..segment.end]) {
-                                        callback(speaker_id, text);
-                                    }
+                            if let Ok(mut trans) = transcription.lock() {
+                                let float_samples: Vec<f32> = segment.samples.iter().map(|&x| x as f32 / i16::MAX as f32).collect();
+                                if let Ok(text) = trans.transcribe_audio(&float_samples, sample_rate) {
+                                    callback(speaker_id, text);
                                 }
                             }
                         }
@@ -58,14 +61,39 @@ pub fn start_audio_capture(
         }
     });
 
-    let stream = device.build_output_stream(
-        &config.into(),
-        move |data: &[f32], _: &cpal::OutputCallbackInfo| {
-            producer.push_slice(data);
-        },
-        move |err| eprintln!("Error in audio stream: {}", err),
-        None,
-    )?;
+    let stream = match config.sample_format() {
+        cpal::SampleFormat::I16 => device.build_output_stream(
+            &config.into(),
+            move |data: &mut [i16], _| { 
+                let float_data: Vec<f32> = data.iter()
+                    .map(|&x| x as f32 / i16::MAX as f32)
+                    .collect();
+                producer.push_slice(&float_data);
+            },
+            move |err| eprintln!("Error in audio stream: {}", err),
+            None,
+        ),
+        cpal::SampleFormat::U16 => device.build_output_stream(
+            &config.into(),
+            move |data: &mut [u16], _| {
+                let float_data: Vec<f32> = data.iter()
+                    .map(|&x| (x as f32 / u16::MAX as f32) * 2.0 - 1.0)
+                    .collect();
+                producer.push_slice(&float_data);
+            },
+            move |err| eprintln!("Error in audio stream: {}", err),
+            None,
+        ),
+        cpal::SampleFormat::F32 => device.build_output_stream(
+            &config.into(),
+            move |data: &mut [f32], _| { 
+                producer.push_slice(data);
+            },
+            move |err| eprintln!("Error in audio stream: {}", err),
+            None,
+        ),
+        _ => unreachable!("Unknown sample format"),
+    }?;
 
     stream.play()?;
     Ok(stream)

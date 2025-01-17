@@ -1,27 +1,38 @@
 use std::sync::{Arc, Mutex};
-use whisper_rs::{FullParams, WhisperContext};
+use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy, WhisperState};
+
+pub trait TranscriptionBackend: Send + Sync {
+    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn std::error::Error>>;
+}
 
 pub struct WhisperIntegration {
     context: WhisperContext,
+    state: WhisperState,
 }
 
 impl WhisperIntegration {
     pub fn new(model_path: &str) -> Self {
-        let context = WhisperContext::new(model_path).expect("Failed to load whisper model");
-        WhisperIntegration { context }
+        let context = WhisperContext::new_with_params(
+            model_path,
+            WhisperContextParameters::default()
+        ).expect("Failed to load whisper model");
+        let state = context.create_state().expect("Failed to create state");
+        
+        WhisperIntegration { context, state }
     }
+}
 
-    pub fn transcribe_audio(&self, audio: &[f32]) -> Result<String, Box<dyn std::error::Error>> {
-        let mut params = FullParams::new(whisper_rs::SamplingStrategy::default());
-        params.set_print_progress(false);
-        params.set_print_timestamps(false);
+impl TranscriptionBackend for WhisperIntegration {
+    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn std::error::Error>> {
+        let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+        params.set_sample_rate(sample_rate as f32);
 
-        self.context.full(params, audio)?;
-        let num_segments = self.context.full_n_segments()?;
+        self.state.full(params, audio)?;
+        let num_segments = self.state.full_n_segments()?;
 
         let mut text = String::new();
         for i in 0..num_segments {
-            if let Ok(segment) = self.context.full_get_segment_text(i) {
+            if let Ok(segment) = self.state.full_get_segment_text(i) {
                 text.push_str(&segment);
                 text.push(' ');
             }
@@ -31,6 +42,6 @@ impl WhisperIntegration {
     }
 }
 
-pub fn initialize_whisper(model_path: &str) -> Arc<Mutex<WhisperIntegration>> {
+pub fn initialize_whisper(model_path: &str) -> Arc<Mutex<impl TranscriptionBackend>> {
     Arc::new(Mutex::new(WhisperIntegration::new(model_path)))
 }

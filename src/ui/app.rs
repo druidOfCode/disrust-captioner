@@ -1,12 +1,12 @@
-use eframe::{egui, epi};
+use eframe::egui;
 use std::sync::{Arc, Mutex};
 use crate::diarization::pyannote::PyannoteIntegration;
 use crate::transcription::whisper_integration::WhisperIntegration;
 use crate::config::persistence::Config;
-use cpal::Device;
+use cpal::{Device, traits::{DeviceTrait, HostTrait}};
 use std::collections::HashMap;
 
-pub struct App {
+pub struct CaptionerApp {
     diarization: Arc<Mutex<PyannoteIntegration>>,
     transcription: Arc<Mutex<WhisperIntegration>>,
     current_transcript: String,
@@ -19,16 +19,16 @@ pub struct App {
     transcription_history: Vec<(String, String)>, // (speaker, text)
 }
 
-impl App {
+impl CaptionerApp {
     fn new(
-        cc: &eframe::CreationContext<'_>,
+        _cc: &eframe::CreationContext<'_>,
         diarization: Arc<Mutex<PyannoteIntegration>>,
         transcription: Arc<Mutex<WhisperIntegration>>,
     ) -> Self {
         let host = cpal::default_host();
-        let available_devices = host.output_devices()
-            .unwrap_or_default()
-            .collect::<Vec<_>>();
+        let available_devices = host.devices()
+            .map(|devices| devices.collect())
+            .unwrap_or_default();
         
         Self {
             diarization,
@@ -60,8 +60,7 @@ impl App {
     }
 }
 
-// Replace epi::App with eframe::App
-impl eframe::App for App {
+impl eframe::App for CaptionerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Disrust Captioner");
@@ -128,18 +127,16 @@ impl eframe::App for App {
 pub fn start_ui(
     diarization: Arc<Mutex<PyannoteIntegration>>,
     transcription: Arc<Mutex<WhisperIntegration>>,
-    selected_device: Option<cpal::Device>,
+    _selected_device: Option<cpal::Device>,
 ) {
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "Disrust Captioner",
         native_options,
-        Box::new(move |cc| {
-            Box::new(App::new(
-                cc,
-                diarization.clone(),
-                transcription.clone(),
-            ))
-        }),
+        Box::new(move |cc| Ok(Box::new(CaptionerApp::new(
+            cc,
+            diarization.clone(),
+            transcription.clone(),
+        )))),
     ).expect("Failed to start eframe");
 }
