@@ -34,7 +34,7 @@ pub fn start_audio_capture(
     let ring_buffer = ringbuf::HeapRb::<i16>::new(BUFFER_SIZE);  // Changed to i16
     let (mut producer, mut consumer) = ring_buffer.split();
 
-    std::thread::spawn(move || {
+    std::thread::spawn(move || -> Result<(), Box<dyn std::error::Error>> {
         let mut buffer = vec![0i16; PROCESS_INTERVAL];
         loop {
             let count = consumer.pop_slice(&mut buffer);
@@ -58,6 +58,7 @@ pub fn start_audio_capture(
                 }
             }
         }
+        Ok(())
     });
 
     let stream = match config.sample_format() {
