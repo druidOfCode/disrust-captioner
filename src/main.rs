@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 1) Create SpeakerManager, Diarization, and Transcription backends
     let speaker_manager = Arc::new(Mutex::new(SpeakerManager::new()));
     let diarization = initialize_pyannote("models/segmentation-3.0.onnx", 16000);
-    let transcription = initialize_whisper("models/ggml-small.bin"); // or your chosen model
+    let transcription = initialize_whisper("models/ggml-large-v3.bin"); // or your chosen model
 
     // 2) Launch the eframe UI (CaptionerApp), passing references to the backends
     let native_options = NativeOptions::default();
