@@ -23,7 +23,7 @@ impl WhisperIntegration {
 }
 
 impl TranscriptionBackend for WhisperIntegration {
-    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn std::error::Error>> {
+    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn std::error::Error + Send>> {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_sample_rate(sample_rate as f32);
 
