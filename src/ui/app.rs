@@ -15,7 +15,7 @@ pub struct CaptionerApp {
     transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     speaker_manager: Arc<Mutex<SpeakerManager>>,
     is_running: bool,
-    available_devices: Vec<cpal::Device>,
+    available_output_devices: Vec<cpal::Device>,
     selected_device: Option<usize>,
 
     stream: Option<Stream>,
@@ -36,10 +36,11 @@ impl CaptionerApp {
         speaker_manager: Arc<Mutex<SpeakerManager>>,
     ) -> Self {
         let host = cpal::default_host();
-        let available_devices = match host.devices() {
-            Ok(iter) => iter.collect(),
-            Err(_) => vec![],
-        };
+        
+        // Collect output devices
+        let available_output_devices = host.output_devices()
+            .expect("Failed to get output devices")
+            .collect::<Vec<_>>();
 
         let (tx, rx) = unbounded();
         let config = Config::load("config.json");
@@ -48,7 +49,7 @@ impl CaptionerApp {
             transcription,
             speaker_manager,
             is_running: false,
-            available_devices,
+            available_output_devices,
             selected_device: None,
 
             stream: None,
@@ -65,7 +66,7 @@ impl CaptionerApp {
 
     fn start_capture(&mut self) {
         if let Some(idx) = self.selected_device {
-            let device = self.available_devices[idx].clone();
+            let device = self.available_output_devices[idx].clone();
             let trans = Arc::clone(&self.transcription);
             let speaker_manager = Arc::clone(&self.speaker_manager);
             let sender = self.tx.clone();
@@ -110,18 +111,18 @@ impl eframe::App for CaptionerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Disrust Captioner");
 
-            // Device selection
+            // Device selection (Output Devices Only)
             ui.horizontal(|ui| {
                 ui.label("Audio Device:");
                 egui::ComboBox::from_label("")
                     .selected_text(match self.selected_device {
                         Some(idx) => {
-                            self.available_devices[idx].name().unwrap_or("Unnamed Device".to_string())
+                            self.available_output_devices[idx].name().unwrap_or("Unnamed Device".to_string())
                         }
                         None => "Select a device".to_string(),
                     })
                     .show_ui(ui, |ui| {
-                        for (idx, device) in self.available_devices.iter().enumerate() {
+                        for (idx, device) in self.available_output_devices.iter().enumerate() {
                             let name = device.name().unwrap_or(format!("Device {}", idx));
                             ui.selectable_value(&mut self.selected_device, Some(idx), name);
                         }
@@ -154,7 +155,7 @@ impl eframe::App for CaptionerApp {
                         }
 
                         // Timestamp (consider formatting it nicely)
-                        ui.label(format!("[{}] {}: {}", chrono::DateTime::<chrono::Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(*timestamp, 0).unwrap(), chrono::Utc).format("%Y-%m-%d %H:%M:%S"), speaker_name, text));
+                        ui.label(format!("[{}] {}: {}", chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(chrono::NaiveDateTime::from_timestamp_opt(*timestamp, 0).unwrap(), chrono::Utc).format("%Y-%m-%d %H:%M:%S"), speaker_name, text));
                     });
 
                     // Handle editing mode

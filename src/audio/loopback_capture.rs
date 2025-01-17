@@ -16,6 +16,7 @@ pub fn initialize_audio_device(
     if let Some(dev) = maybe_device {
         Ok(dev)
     } else {
+        // Default *output* device for shared mode
         host.default_output_device()
             .ok_or(cpal::BuildStreamError::StreamConfigNotSupported)
     }
@@ -25,19 +26,17 @@ pub fn start_audio_capture(
     device: cpal::Device,
     transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
     speaker_manager: Arc<Mutex<SpeakerManager>>,
-    callback: impl Fn(String, String, i64) + Send + 'static, // Include timestamp
+    callback: impl Fn(String, String, i64) + Send + 'static,
 ) -> Result<cpal::Stream, Box<dyn std::error::Error + Send + Sync>> {
-    // 1) Default input config
-    let config = device.default_input_config()?;
+    // Use the default output config for shared mode
+    let config = device.default_output_config()?;
     let sample_rate = config.sample_rate().0;
     let chunk_seconds = 5;
     let samples_per_chunk = (sample_rate as usize) * chunk_seconds;
 
-    // 2) Create ring buffer for i16
     let ring_buffer = HeapRb::<i16>::new(BUFFER_SIZE);
     let (mut producer, mut consumer) = ring_buffer.split();
 
-    // 3) Spawn thread to transcribe
     std::thread::spawn(move || {
         let mut buffer = vec![0i16; PROCESS_INTERVAL];
         let mut accum = Vec::new();
@@ -83,19 +82,19 @@ pub fn start_audio_capture(
         }
     });
 
-    // 4) Build input stream
+    // Build an output stream in shared mode
     let stream = match config.sample_format() {
-        cpal::SampleFormat::I16 => device.build_input_stream(
+        cpal::SampleFormat::I16 => device.build_output_stream(
             &config.into(),
-            move |data: &[i16], _| {
+            move |data: &mut [i16], _| {
                 producer.push_slice(data);
             },
             move |err| eprintln!("Error in audio stream: {}", err),
             None,
-        ),
-        cpal::SampleFormat::U16 => device.build_input_stream(
+        )?,
+        cpal::SampleFormat::U16 => device.build_output_stream(
             &config.into(),
-            move |data: &[u16], _| {
+            move |data: &mut [u16], _| {
                 let int_data: Vec<i16> = data
                     .iter()
                     .map(|&x| (x as i32 - (u16::MAX as i32 / 2)) as i16)
@@ -104,10 +103,10 @@ pub fn start_audio_capture(
             },
             move |err| eprintln!("Error in audio stream: {}", err),
             None,
-        ),
-        cpal::SampleFormat::F32 => device.build_input_stream(
+        )?,
+        cpal::SampleFormat::F32 => device.build_output_stream(
             &config.into(),
-            move |data: &[f32], _| {
+            move |data: &mut [f32], _| {
                 let int_data: Vec<i16> = data
                     .iter()
                     .map(|&x| (x * i16::MAX as f32) as i16)
@@ -116,11 +115,10 @@ pub fn start_audio_capture(
             },
             move |err| eprintln!("Error in audio stream: {}", err),
             None,
-        ),
+        )?,
         _ => unreachable!("Unsupported sample format"),
-    }?;
+    };
 
-    // 5) Start capturing
     stream.play()?;
     Ok(stream)
 }
