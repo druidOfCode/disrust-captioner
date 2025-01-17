@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     
     let transcription = transcription::whisper_integration::initialize_whisper(
-        "models/whisper-ggml-base.bin",
+        "models/ggml-large-v3.bin",
     );
 
     // Start the audio capture in a separate thread
