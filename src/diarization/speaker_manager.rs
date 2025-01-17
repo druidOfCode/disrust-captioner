@@ -1,41 +1,37 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use pyannote_rs::SpeakerEmbedding;
 
 pub struct SpeakerManager {
-    speakers: Arc<Mutex<HashMap<String, SpeakerEmbedding>>>,
+    speakers: HashMap<Vec<f32>, String>,
+    next_id: usize,
 }
 
 impl SpeakerManager {
     pub fn new() -> Self {
-        SpeakerManager {
-            speakers: Arc::new(Mutex::new(HashMap::new())),
+        Self {
+            speakers: HashMap::new(),
+            next_id: 1,
         }
     }
 
-    pub fn add_speaker(&self, name: String, embedding: SpeakerEmbedding) {
-        let mut speakers = self.speakers.lock().unwrap();
-        speakers.insert(name, embedding);
-    }
-
-    pub fn get_speaker(&self, name: &str) -> Option<SpeakerEmbedding> {
-        let speakers = self.speakers.lock().unwrap();
-        speakers.get(name).cloned()
-    }
-
-    pub fn identify_speaker(&self, embedding: &SpeakerEmbedding) -> Option<String> {
-        let speakers = self.speakers.lock().unwrap();
-        for (name, stored_embedding) in speakers.iter() {
-            if self.compare_embeddings(stored_embedding, embedding) {
-                return Some(name.clone());
+    pub fn identify_speaker(&mut self, embedding: &Vec<f32>) -> String {
+        // Simple cosine similarity check
+        for (stored_embedding, speaker_id) in &self.speakers {
+            if cosine_similarity(embedding, stored_embedding) > 0.85 {
+                return speaker_id.clone();
             }
         }
-        None
+        
+        // New speaker found
+        let new_id = format!("Speaker_{}", self.next_id);
+        self.next_id += 1;
+        self.speakers.insert(embedding.clone(), new_id.clone());
+        new_id
     }
+}
 
-    fn compare_embeddings(&self, embedding1: &SpeakerEmbedding, embedding2: &SpeakerEmbedding) -> bool {
-        // Implement a comparison method, e.g., cosine similarity
-        // For simplicity, we assume a placeholder comparison here
-        embedding1 == embedding2
-    }
+fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+    dot_product / (magnitude_a * magnitude_b)
 }

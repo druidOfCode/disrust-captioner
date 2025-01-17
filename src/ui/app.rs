@@ -43,6 +43,17 @@ impl App {
     pub fn get_selected_device(&self) -> Option<cpal::Device> {
         self.selected_device.and_then(|idx| self.available_devices.get(idx).cloned())
     }
+
+    pub fn add_transcription(&mut self, speaker: String, text: String) {
+        self.transcription_history.push((speaker.clone(), text.clone()));
+        self.current_speaker = speaker;
+        self.current_transcript = text;
+        
+        // Keep history at a reasonable size
+        if self.transcription_history.len() > 100 {
+            self.transcription_history.remove(0);
+        }
+    }
 }
 
 impl epi::App for App {
