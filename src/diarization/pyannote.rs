@@ -29,9 +29,8 @@ impl DiarizationBackend for PyannoteIntegration {
         }])
     }
 
-    fn embed_speaker(&self, audio: &[f32]) -> Vec<f32> {
-        let i16_data: Vec<i16> = audio.iter().map(|&f| (f * i16::MAX as f32) as i16).collect();
-        self.extractor.extract(&i16_data, self.sample_rate)
+    fn embed_speaker(&self, audio: &[i16]) -> Vec<f32> {
+        self.extractor.extract_i16(audio, self.sample_rate)
             .unwrap_or_default()
     }
 }

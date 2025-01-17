@@ -31,19 +31,18 @@ pub fn start_audio_capture(
 ) -> Result<cpal::Stream, Box<dyn std::error::Error>> {
     let config = device.default_output_config().map_err(Box::new)?;
     let sample_rate = config.sample_rate().0;
-    let ring_buffer = ringbuf::HeapRb::<f32>::new(BUFFER_SIZE);  // Changed to f32
+    let ring_buffer = ringbuf::HeapRb::<i16>::new(BUFFER_SIZE);  // Changed to i16
     let (mut producer, mut consumer) = ring_buffer.split();
 
     std::thread::spawn(move || {
-        let mut buffer = vec![0.0f32; PROCESS_INTERVAL];
+        let mut buffer = vec![0i16; PROCESS_INTERVAL];
         loop {
             let count = consumer.pop_slice(&mut buffer);
             if count >= PROCESS_INTERVAL {
                 if let Ok(diar) = diarization.lock() {
                     if let Ok(segments) = diar.segment_audio(&buffer) {
                         for segment in segments {
-                            let float_samples: Vec<f32> = segment.samples.iter().map(|&x| x as f32).collect();
-                            let speaker_embedding = diar.embed_speaker(&float_samples);
+                            let speaker_embedding = diar.embed_speaker(&segment.samples);
                             let speaker_id = speaker_manager.lock()
                                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?
                                 .identify_speaker(&speaker_embedding);
@@ -65,10 +64,7 @@ pub fn start_audio_capture(
         cpal::SampleFormat::I16 => device.build_output_stream(
             &config.into(),
             move |data: &mut [i16], _| { 
-                let float_data: Vec<f32> = data.iter()
-                    .map(|&x| x as f32 / i16::MAX as f32)
-                    .collect();
-                producer.push_slice(&float_data);
+                producer.push_slice(data);
             },
             move |err| eprintln!("Error in audio stream: {}", err),
             None,
@@ -76,10 +72,10 @@ pub fn start_audio_capture(
         cpal::SampleFormat::U16 => device.build_output_stream(
             &config.into(),
             move |data: &mut [u16], _| {
-                let float_data: Vec<f32> = data.iter()
-                    .map(|&x| (x as f32 / u16::MAX as f32) * 2.0 - 1.0)
+                let int_data: Vec<i16> = data.iter()
+                    .map(|&x| (x as i16 - i16::MAX / 2) * 2)
                     .collect();
-                producer.push_slice(&float_data);
+                producer.push_slice(&int_data);
             },
             move |err| eprintln!("Error in audio stream: {}", err),
             None,
@@ -87,7 +83,10 @@ pub fn start_audio_capture(
         cpal::SampleFormat::F32 => device.build_output_stream(
             &config.into(),
             move |data: &mut [f32], _| { 
-                producer.push_slice(data);
+                let int_data: Vec<i16> = data.iter()
+                    .map(|&x| (x * i16::MAX as f32) as i16)
+                    .collect();
+                producer.push_slice(&int_data);
             },
             move |err| eprintln!("Error in audio stream: {}", err),
             None,
