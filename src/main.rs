@@ -1,3 +1,5 @@
+// src/main.rs
+
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 
@@ -8,12 +10,12 @@ use disrust_captioner::ui::app::CaptionerApp;
 use eframe::NativeOptions;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // 1) Create SpeakerManager, Diarization, and Transcription backends
+    // 1) Create SpeakerManager, Diarization, and Transcription
     let speaker_manager = Arc::new(Mutex::new(SpeakerManager::new()));
     let diarization = initialize_pyannote("models/segmentation-3.0.onnx", 16000);
-    let transcription = initialize_whisper("models/ggml-large-v3.bin"); // or your chosen model
+    let transcription = initialize_whisper("models/ggml-small.bin");
 
-    // 2) Launch the eframe UI (CaptionerApp), passing references to the backends
+    // 2) Launch the eframe UI
     let native_options = NativeOptions::default();
     eframe::run_native(
         "Disrust Captioner",
