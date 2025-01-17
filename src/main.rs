@@ -1,44 +1,32 @@
-use std::sync::{Arc, Mutex};
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 
-mod audio;
-mod diarization;
-mod transcription;
-mod ui;
-mod config;
+use disrust_captioner::diarization::pyannote::initialize_pyannote;
+use disrust_captioner::diarization::speaker_manager::SpeakerManager;
+use disrust_captioner::transcription::whisper_integration::initialize_whisper;
+use disrust_captioner::ui::app::CaptionerApp;
+use eframe::NativeOptions;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let speaker_manager = Arc::new(Mutex::new(
-        diarization::speaker_manager::SpeakerManager::new()
-    ));
-    
-    let diarization = diarization::pyannote::initialize_pyannote(
-        "models/segmentation-3.0.onnx",
-        16000, // Standard sample rate for most speech models
-    );
-    
-    let transcription = transcription::whisper_integration::initialize_whisper(
-        "models/ggml-large-v3.bin",
-    );
+    // 1) Create SpeakerManager, Diarization, and Transcription backends
+    let speaker_manager = Arc::new(Mutex::new(SpeakerManager::new()));
+    let diarization = initialize_pyannote("models/segmentation-3.0.onnx", 16000);
+    let transcription = initialize_whisper("models/ggml-small.bin"); // or your chosen model
 
-    // Start the audio capture in a separate thread
-    let audio_device = audio::loopback_capture::initialize_audio_device(None)?;
-    let speaker_manager_clone = Arc::clone(&speaker_manager);
-    let _stream = audio::loopback_capture::start_audio_capture(
-        audio_device,
-        diarization.clone(),
-        transcription.clone(),
-        speaker_manager_clone,
-        |speaker, text| {
-            // Handle new transcription
-            println!("{}: {}", speaker, text);
-        },
-    );
+    // 2) Launch the eframe UI (CaptionerApp), passing references to the backends
+    let native_options = NativeOptions::default();
+    eframe::run_native(
+        "Disrust Captioner",
+        native_options,
+        Box::new(move |cc| {
+            Ok(Box::new(CaptionerApp::new(
+                cc,
+                speaker_manager.clone(),
+                diarization.clone(),
+                transcription.clone(),
+            )))
+        }),
+    )?;
 
-    // Pass a None or Some(device) here after user selection
-    let selected_device: Option<cpal::Device> = None; // <- from the UI
-
-    // Launch UI
-    ui::app::start_ui(diarization, transcription, selected_device);
     Ok(())
 }
