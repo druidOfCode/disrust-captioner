@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use whisper_rs::{
-    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperError,
-    WhisperState,
+    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
 };
 
 // Custom error type for &str errors
+#[derive(Debug)]
 struct SimpleError(String);
 
 impl std::fmt::Display for SimpleError {
@@ -14,6 +14,8 @@ impl std::fmt::Display for SimpleError {
     }
 }
 
+impl std::error::Error for SimpleError {}
+
 impl From<&str> for SimpleError {
     fn from(s: &str) -> Self {
         SimpleError(s.to_string())
@@ -21,11 +23,10 @@ impl From<&str> for SimpleError {
 }
 
 pub trait TranscriptionBackend: Send + Sync {
-    fn transcribe_audio(&mut self, audio: &[f32]) -> Result<String, Box<dyn Error + Send>>;
+    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn Error + Send>>;
 }
 
 pub struct WhisperIntegration {
-    context: WhisperContext,
     state: WhisperState,
 }
 
@@ -36,14 +37,14 @@ impl WhisperIntegration {
                 .expect("Failed to load whisper model");
         let state = context.create_state().expect("Failed to create state");
 
-        WhisperIntegration { context, state }
+        WhisperIntegration { state }
     }
 }
 
 impl TranscriptionBackend for WhisperIntegration {
-    fn transcribe_audio(&mut self, audio: &[f32]) -> Result<String, Box<dyn Error + Send>> {
+    fn transcribe_audio(&mut self, audio: &[f32], sample_rate: u32) -> Result<String, Box<dyn Error + Send>> {
         if audio.is_empty() {
-            return Err(Box::new(WhisperError::InitError) as Box<dyn Error + Send>);
+            return Err(Box::new(SimpleError("Empty audio buffer".into())));
         }
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });

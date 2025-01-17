@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use eframe::epi;
 
 mod audio;
 mod diarization;
@@ -14,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let diarization = diarization::pyannote::initialize_pyannote(
         "models/segmentation-3.0.onnx",
-        "models/wespeaker_en_voxceleb_CAM++.onnx",
+        16000, // Standard sample rate for most speech models
     );
     
     let transcription = transcription::whisper_integration::initialize_whisper(

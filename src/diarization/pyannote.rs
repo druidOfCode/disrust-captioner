@@ -30,8 +30,9 @@ impl DiarizationBackend for PyannoteIntegration {
     }
 
     fn embed_speaker(&mut self, audio: &[i16]) -> Vec<f32> {
-        self.extractor.extract_i16(audio, self.sample_rate)
-            .unwrap_or_default()
+        self.extractor.compute(audio)
+            .map(|iter| iter.collect())
+            .unwrap_or_else(|_| Vec::new())
     }
 }
 

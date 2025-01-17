@@ -41,49 +41,33 @@ pub fn start_audio_capture(
         loop {
             let count = consumer.pop_slice(&mut buffer);
             if count >= PROCESS_INTERVAL {
-                // 2) Segment + embed + transcribe
-                let segments = {
-                    // Use a scope so diar lock is freed quickly
-                    if let Ok(diar) = diarization.lock() {
-                        diar.segment_audio(&buffer)
-                    } else {
-                        // Could log error, break, or continue
-                        continue;
-                    }
-                };
+                if let Ok(mut diar) = diarization.lock() {
+                    if let Ok(segments) = diar.segment_audio(&buffer) {
+                        for segment in segments {
+                            // Speaker embedding - using i16 data directly
+                            let speaker_id = {
+                                let embedding = diar.embed_speaker(&segment.samples);
+                                speaker_manager.lock()
+                                    .unwrap()
+                                    .identify_speaker(&embedding)
+                            };
 
-                if let Ok(segments) = segments {
-                    for segment in segments {
-                        // Convert i16 -> f32
-                        let float_samples: Vec<f32> = segment.samples
-                            .iter()
-                            .map(|&x| x as f32 / i16::MAX as f32)
-                            .collect();
+                            // Convert to f32 only for transcription
+                            let float_samples: Vec<f32> = segment.samples
+                                .iter()
+                                .map(|&x| x as f32 / i16::MAX as f32)
+                                .collect();
 
-                        // Speaker embedding
-                        let speaker_id = if let Ok(diar) = diarization.lock() {
-                            let embedding = diar.embed_speaker(&float_samples);
-                            // or however your function is named
-                            speaker_manager.lock()
-                                .unwrap()
-                                .identify_speaker(&embedding)
-                        } else {
-                            // fallback
-                            "Unknown".to_string()
-                        };
-
-                        // Transcription
-                        if let Ok(mut trans) = transcription.lock() {
-                            // Adjust to your actual function signature
-                            if let Ok(text) = trans.transcribe_audio(&float_samples) {
-                                callback(speaker_id.clone(), text);
+                            if let Ok(mut trans) = transcription.lock() {
+                                if let Ok(text) = trans.transcribe_audio(&float_samples, sample_rate) {
+                                    callback(speaker_id, text);
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        // no Ok(()) because we never exit the loop
     });
 
     // 3) Build the CPAL output stream (loopback)
