@@ -1,4 +1,7 @@
 use eframe::{egui, epi};
+use std::sync::{Arc, Mutex};
+use crate::diarization::pyannote::PyannoteIntegration;
+use crate::transcription::whisper_integration::WhisperIntegration;
 
 pub struct App {
     // Add necessary fields for the application state
@@ -17,7 +20,7 @@ impl epi::App for App {
     }
 }
 
-pub fn start_ui(diarization: Arc<Mutex<Diarization>>, transcription: Arc<Mutex<Transcription>>) {
+pub fn start_ui(diarization: Arc<Mutex<PyannoteIntegration>>, transcription: Arc<Mutex<WhisperIntegration>>) {
     let app = App {
         // Initialize the application state
     };
