@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Start the audio capture in a separate thread
-    let audio_device = audio::loopback_capture::initialize_audio_device()?;
+    let audio_device = audio::loopback_capture::initialize_audio_device(None)?;
     let speaker_manager_clone = Arc::clone(&speaker_manager);
     let _stream = audio::loopback_capture::start_audio_capture(
         audio_device,
@@ -35,7 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
 
+    // Pass a None or Some(device) here after user selection
+    let selected_device: Option<cpal::Device> = None; // <- from the UI
+
     // Launch UI
-    ui::app::start_ui(diarization, transcription, speaker_manager);
+    ui::app::start_ui(diarization, transcription, selected_device);
     Ok(())
 }

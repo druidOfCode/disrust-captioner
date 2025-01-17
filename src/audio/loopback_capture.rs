@@ -6,8 +6,13 @@ use crate::diarization::speaker_manager::SpeakerManager;
 const BUFFER_SIZE: usize = 1024 * 16;
 const PROCESS_INTERVAL: usize = 4096; // Process every 4096 samples
 
-pub fn initialize_audio_device() -> Result<cpal::Device, cpal::BuildStreamError> {
+pub fn initialize_audio_device(
+    maybe_device: Option<cpal::Device>
+) -> Result<cpal::Device, cpal::BuildStreamError> {
     let host = cpal::default_host();
+    if let Some(dev) = maybe_device {
+        return Ok(dev);
+    }
     let device = host.default_output_device()
         .expect("Failed to find default output device");
     Ok(device)

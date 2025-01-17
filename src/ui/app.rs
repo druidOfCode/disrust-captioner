@@ -39,6 +39,10 @@ impl App {
             transcription_history: Vec::new(),
         }
     }
+
+    pub fn get_selected_device(&self) -> Option<cpal::Device> {
+        self.selected_device.and_then(|idx| self.available_devices.get(idx).cloned())
+    }
 }
 
 impl epi::App for App {
@@ -112,8 +116,10 @@ impl epi::App for App {
 pub fn start_ui(
     diarization: Arc<Mutex<PyannoteIntegration>>,
     transcription: Arc<Mutex<WhisperIntegration>>,
+    selected_device: Option<cpal::Device>,
 ) {
     let app = App::new(diarization, transcription);
     let native_options = eframe::NativeOptions::default();
+    let chosen_device = selected_device.or_else(|| app.get_selected_device());
     eframe::run_native(Box::new(app), native_options);
 }
