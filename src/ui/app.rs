@@ -8,28 +8,32 @@ use cpal::Stream;
 
 use crate::audio::loopback_capture;
 use crate::config::persistence::Config;
+use crate::diarization::speaker_manager::SpeakerManager;
 use crate::transcription::whisper_integration::TranscriptionBackend;
 
 pub struct CaptionerApp {
-    // We only store transcription backend now
     transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
-
+    speaker_manager: Arc<Mutex<SpeakerManager>>,
     is_running: bool,
     available_devices: Vec<cpal::Device>,
     selected_device: Option<usize>,
 
     stream: Option<Stream>,
-    tx: Sender<(String, String)>,
-    rx: Receiver<(String, String)>,
+    tx: Sender<(String, String, i64)>, // Include timestamp
+    rx: Receiver<(String, String, i64)>, // Include timestamp
 
     config: Config,
-    transcription_history: Vec<(String, String)>,
+    transcription_history: Vec<(String, String, i64)>, // Include timestamp
+
+    edit_speaker_id: Option<String>, // ID of speaker being edited
+    temp_name: String, // Temporary name during editing
 }
 
 impl CaptionerApp {
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
         transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
+        speaker_manager: Arc<Mutex<SpeakerManager>>,
     ) -> Self {
         let host = cpal::default_host();
         let available_devices = match host.devices() {
@@ -42,6 +46,7 @@ impl CaptionerApp {
 
         Self {
             transcription,
+            speaker_manager,
             is_running: false,
             available_devices,
             selected_device: None,
@@ -52,6 +57,9 @@ impl CaptionerApp {
 
             config,
             transcription_history: Vec::new(),
+
+            edit_speaker_id: None,
+            temp_name: String::new(),
         }
     }
 
@@ -59,13 +67,15 @@ impl CaptionerApp {
         if let Some(idx) = self.selected_device {
             let device = self.available_devices[idx].clone();
             let trans = Arc::clone(&self.transcription);
+            let speaker_manager = Arc::clone(&self.speaker_manager);
             let sender = self.tx.clone();
 
             let stream_result = loopback_capture::start_audio_capture(
                 device,
                 trans,
-                move |speaker, text| {
-                    sender.send((speaker, text)).ok();
+                speaker_manager,
+                move |speaker, text, timestamp| {
+                    sender.send((speaker, text, timestamp)).ok();
                 },
             );
 
@@ -90,8 +100,8 @@ impl CaptionerApp {
 impl eframe::App for CaptionerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Check for new transcripts
-        while let Ok((speaker, text)) = self.rx.try_recv() {
-            self.transcription_history.push((speaker, text));
+        while let Ok((speaker, text, timestamp)) = self.rx.try_recv() {
+            self.transcription_history.push((speaker, text, timestamp));
             if self.transcription_history.len() > 200 {
                 self.transcription_history.remove(0);
             }
@@ -130,8 +140,42 @@ impl eframe::App for CaptionerApp {
             ui.separator();
             ui.heading("Transcription");
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                for (speaker, text) in &self.transcription_history {
-                    ui.label(format!("{}: {}", speaker, text));
+                for (speaker_id, text, timestamp) in &self.transcription_history {
+                    let speaker_name = self.config
+                        .get_speaker_name(speaker_id)
+                        .unwrap_or(speaker_id)
+                        .clone();
+
+                    // Display name (clickable to edit)
+                    ui.horizontal(|ui| {
+                        if ui.button(&speaker_name).clicked() {
+                            self.edit_speaker_id = Some(speaker_id.clone());
+                            self.temp_name = speaker_name.clone();
+                        }
+
+                        // Timestamp (consider formatting it nicely)
+                        ui.label(format!("[{}] {}: {}", chrono::DateTime::<chrono::Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(*timestamp, 0).unwrap(), chrono::Utc).format("%Y-%m-%d %H:%M:%S"), speaker_name, text));
+                    });
+
+                    // Handle editing mode
+                    if let Some(editing_id) = &self.edit_speaker_id {
+                        if editing_id == speaker_id {
+                            ui.horizontal(|ui| {
+                                ui.text_edit_singleline(&mut self.temp_name);
+                                if ui.button("Save").clicked() {
+                                    if let Ok(mut sm) = self.speaker_manager.lock() {
+                                        sm.rename_speaker(speaker_id, &self.temp_name);
+                                    }
+                                    self.config.set_speaker_name(speaker_id.clone(), self.temp_name.clone());
+                                    self.config.save("config.json");
+                                    self.edit_speaker_id = None;
+                                }
+                                if ui.button("Cancel").clicked() {
+                                    self.edit_speaker_id = None;
+                                }
+                            });
+                        }
+                    }
                 }
             });
         });

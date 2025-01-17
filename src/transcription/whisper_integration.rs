@@ -51,6 +51,7 @@ impl TranscriptionBackend for WhisperIntegration {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
+        params.set_language(Some("en")); // Force English
 
         self.state
             .full(params, audio)

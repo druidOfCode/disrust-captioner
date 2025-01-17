@@ -4,9 +4,9 @@ use std::io::{Read, Write};
 use std::path::Path;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)] // Add Debug for logging
 pub struct Config {
-    speaker_names: HashMap<String, String>,
+    pub speaker_names: HashMap<String, String>,
 }
 
 impl Config {
@@ -18,19 +18,48 @@ impl Config {
 
     pub fn load(path: &str) -> Self {
         if Path::new(path).exists() {
-            let mut file = File::open(path).expect("Failed to open config file");
+            let mut file = match File::open(path) {
+                Ok(f) => f,
+                Err(e) => {
+                    eprintln!("Failed to open config file: {}", e);
+                    return Config::new();
+                }
+            };
             let mut contents = String::new();
-            file.read_to_string(&mut contents).expect("Failed to read config file");
-            serde_json::from_str(&contents).expect("Failed to parse config file")
+            if let Err(e) = file.read_to_string(&mut contents) {
+                eprintln!("Failed to read config file: {}", e);
+                return Config::new();
+            }
+            match serde_json::from_str(&contents) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to parse config file: {}", e);
+                    Config::new()
+                }
+            }
         } else {
             Config::new()
         }
     }
 
     pub fn save(&self, path: &str) {
-        let contents = serde_json::to_string_pretty(self).expect("Failed to serialize config");
-        let mut file = File::create(path).expect("Failed to create config file");
-        file.write_all(contents.as_bytes()).expect("Failed to write config file");
+        match serde_json::to_string_pretty(self) {
+            Ok(contents) => {
+                let mut file = match File::create(path) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        eprintln!("Failed to create config file: {}", e);
+                        return;
+                    }
+                };
+                if let Err(e) = file.write_all(contents.as_bytes()) {
+                    eprintln!("Failed to write config file: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to serialize config: {}", e);
+            }
+        }
     }
 
     pub fn set_speaker_name(&mut self, id: String, name: String) {
