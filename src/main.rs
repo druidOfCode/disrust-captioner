@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 1) Create SpeakerManager, Diarization, and Transcription
     let speaker_manager = Arc::new(Mutex::new(SpeakerManager::new()));
     let diarization = initialize_pyannote("models/segmentation-3.0.onnx", 16000);
-    let transcription = initialize_whisper("models/ggml-small.bin");
+    let transcription = initialize_whisper("models/ggml-large-v3.bin");
 
     // 2) Launch the eframe UI
     let native_options = NativeOptions::default();
