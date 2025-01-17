@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 pub trait DiarizationBackend: Send + Sync {
     fn segment_audio(&self, audio: &[i16]) -> Result<Vec<Segment>, Box<dyn std::error::Error>>;
-    fn embed_speaker(&self, audio: &[i16]) -> Vec<f32>;
+    fn embed_speaker(&mut self, audio: &[i16]) -> Vec<f32>;
 }
 
 pub struct PyannoteIntegration {
@@ -29,7 +29,7 @@ impl DiarizationBackend for PyannoteIntegration {
         }])
     }
 
-    fn embed_speaker(&self, audio: &[i16]) -> Vec<f32> {
+    fn embed_speaker(&mut self, audio: &[i16]) -> Vec<f32> {
         self.extractor.extract_i16(audio, self.sample_rate)
             .unwrap_or_default()
     }
