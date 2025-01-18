@@ -4,7 +4,7 @@ use ringbuf::traits::{Consumer as _, Producer as _};
 use std::sync::{Arc, Mutex};
 
 use crate::diarization::speaker_manager::SpeakerManager;
-use crate::transcription::whisper_integration::TranscriptionBackend;
+use crate::sherpa_onnx::SherpaOnnx;
 
 const BUFFER_SIZE: usize = 1024 * 16;
 const PROCESS_INTERVAL: usize = 4096;
@@ -16,7 +16,6 @@ pub fn initialize_audio_device(
     if let Some(dev) = maybe_device {
         Ok(dev)
     } else {
-        // Default *output* device for shared mode
         host.default_output_device()
             .ok_or(cpal::BuildStreamError::StreamConfigNotSupported)
     }
@@ -24,11 +23,11 @@ pub fn initialize_audio_device(
 
 pub fn start_audio_capture(
     device: cpal::Device,
-    transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
+    sherpa_onnx: Arc<Mutex<SherpaOnnx>>,
     speaker_manager: Arc<Mutex<SpeakerManager>>,
     callback: impl Fn(String, String, i64) + Send + 'static,
+    audio_data_for_plot: Arc<Mutex<Vec<f32>>>, // Add parameter for audio data
 ) -> Result<cpal::Stream, Box<dyn std::error::Error + Send + Sync>> {
-    // Use the default output config for shared mode
     let config = device.default_output_config()?;
     let sample_rate = config.sample_rate().0;
     let chunk_seconds = 5;
@@ -36,6 +35,8 @@ pub fn start_audio_capture(
 
     let ring_buffer = HeapRb::<i16>::new(BUFFER_SIZE);
     let (mut producer, mut consumer) = ring_buffer.split();
+
+    let sherpa_onnx = sherpa_onnx.clone();
 
     std::thread::spawn(move || {
         let mut buffer = vec![0i16; PROCESS_INTERVAL];
@@ -52,28 +53,25 @@ pub fn start_audio_capture(
                         .map(|&x| x as f32 / i16::MAX as f32)
                         .collect();
 
-                    let speaker_embedding = if let Ok(mut sm) = speaker_manager.lock() {
-                        sm.get_or_create_speaker_embedding(&float_samples)
-                    } else {
-                        eprintln!("Error locking speaker manager");
-                        Vec::new()
-                    };
-
-                    let speaker_id = if let Ok(mut sm) = speaker_manager.lock() {
-                        sm.identify_speaker(&speaker_embedding)
-                    } else {
-                        eprintln!("Error locking speaker manager");
-                        "Unknown".to_string()
-                    };
-
-                    if let Ok(mut trans) = transcription.lock() {
-                        match trans.transcribe_audio(&float_samples, sample_rate) {
-                            Ok(text) => {
-                                let timestamp = chrono::Utc::now().timestamp();
-                                callback(speaker_id, text, timestamp);
-                            }
-                            Err(e) => eprintln!("Whisper error: {:?}", e),
+                    // Push data to the audio_data_for_plot vector
+                    if let Ok(mut audio_data) = audio_data_for_plot.lock() {
+                        audio_data.extend_from_slice(&float_samples);
+                        if audio_data.len() > samples_per_chunk * 2 {
+                            audio_data.drain(..samples_per_chunk);
                         }
+                    }
+
+                    let (tx, rx) = crossbeam_channel::unbounded();
+                    let speaker_manager_clone = speaker_manager.clone();
+
+                    if let Ok(mut sherpa_onnx_guard) = sherpa_onnx.lock() {
+                        if let Err(e) = sherpa_onnx_guard.process_audio(&float_samples, sample_rate as i32, speaker_manager_clone, tx) {
+                            eprintln!("Error processing audio: {:?}", e);
+                        }
+                    }
+
+                    while let Ok((speaker, text, timestamp)) = rx.try_recv() {
+                        callback(speaker, text, timestamp);
                     }
 
                     accum.clear();
@@ -82,7 +80,6 @@ pub fn start_audio_capture(
         }
     });
 
-    // Build an output stream in shared mode
     let stream = match config.sample_format() {
         cpal::SampleFormat::I16 => device.build_output_stream(
             &config.into(),

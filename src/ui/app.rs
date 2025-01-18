@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use eframe::egui;
+use egui_plot::{Line, Plot, PlotPoints};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::Stream;
@@ -9,10 +10,10 @@ use cpal::Stream;
 use crate::audio::loopback_capture;
 use crate::config::persistence::Config;
 use crate::diarization::speaker_manager::SpeakerManager;
-use crate::transcription::whisper_integration::TranscriptionBackend;
+use crate::sherpa_onnx::SherpaOnnx;
 
 pub struct CaptionerApp {
-    transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
+    sherpa_onnx: Arc<Mutex<SherpaOnnx>>, // Corrected type
     speaker_manager: Arc<Mutex<SpeakerManager>>,
     is_running: bool,
     available_output_devices: Vec<cpal::Device>,
@@ -27,18 +28,21 @@ pub struct CaptionerApp {
 
     edit_speaker_id: Option<String>, // ID of speaker being edited
     temp_name: String, // Temporary name during editing
+
+    audio_data_for_plot: Vec<f32>, // Holds audio data for visualization
 }
 
 impl CaptionerApp {
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
-        transcription: Arc<Mutex<dyn TranscriptionBackend + Send + Sync>>,
+        sherpa_onnx: Arc<Mutex<SherpaOnnx>>, // Now expects Arc<Mutex<SherpaOnnx>>
         speaker_manager: Arc<Mutex<SpeakerManager>>,
     ) -> Self {
         let host = cpal::default_host();
-        
+
         // Collect output devices
-        let available_output_devices = host.output_devices()
+        let available_output_devices = host
+            .output_devices()
             .expect("Failed to get output devices")
             .collect::<Vec<_>>();
 
@@ -46,7 +50,7 @@ impl CaptionerApp {
         let config = Config::load("config.json");
 
         Self {
-            transcription,
+            sherpa_onnx,
             speaker_manager,
             is_running: false,
             available_output_devices,
@@ -61,29 +65,38 @@ impl CaptionerApp {
 
             edit_speaker_id: None,
             temp_name: String::new(),
+
+            audio_data_for_plot: Vec::new(),
         }
     }
 
     fn start_capture(&mut self) {
         if let Some(idx) = self.selected_device {
             let device = self.available_output_devices[idx].clone();
-            let trans = Arc::clone(&self.transcription);
+            let sherpa_onnx = Arc::clone(&self.sherpa_onnx);
             let speaker_manager = Arc::clone(&self.speaker_manager);
             let sender = self.tx.clone();
 
+            // Capture audio data for plotting
+            let audio_data_for_plot = Arc::new(Mutex::new(Vec::<f32>::new()));
+
             let stream_result = loopback_capture::start_audio_capture(
                 device,
-                trans,
+                sherpa_onnx,
                 speaker_manager,
                 move |speaker, text, timestamp| {
                     sender.send((speaker, text, timestamp)).ok();
                 },
+                audio_data_for_plot.clone(),
             );
 
             match stream_result {
                 Ok(s) => {
                     self.stream = Some(s);
                     self.is_running = true;
+
+                    // Store the audio_data_for_plot in the app
+                    self.audio_data_for_plot = audio_data_for_plot.lock().unwrap().clone();
                 }
                 Err(e) => {
                     eprintln!("Failed to start capture: {}", e);
@@ -138,6 +151,17 @@ impl eframe::App for CaptionerApp {
                 }
             }
 
+            // Audio Waveform Plot
+            ui.heading("Audio Waveform");
+            let waveform_data: PlotPoints = self.audio_data_for_plot.iter().enumerate()
+                .map(|(i, &val)| [i as f64, val as f64])
+                .collect();
+            let line = Line::new(waveform_data);
+            Plot::new("audio_waveform")
+                .view_aspect(2.0)
+                .height(100.0)
+                .show(ui, |plot_ui| plot_ui.line(line));
+
             ui.separator();
             ui.heading("Transcription");
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
@@ -147,36 +171,32 @@ impl eframe::App for CaptionerApp {
                         .unwrap_or(speaker_id)
                         .clone();
 
+                    // Get the speaker's color
+                    let color = self.speaker_manager.lock().unwrap().get_speaker_color(speaker_id).unwrap_or(egui::Rgba::from_rgb(1.0, 1.0, 1.0));
+
                     // Display name (clickable to edit)
                     ui.horizontal(|ui| {
-                        if ui.button(&speaker_name).clicked() {
-                            self.edit_speaker_id = Some(speaker_id.clone());
-                            self.temp_name = speaker_name.clone();
+                        // TextEdit for renaming
+                        if self.edit_speaker_id == Some(speaker_id.clone()) {
+                            if ui.text_edit_singleline(&mut self.temp_name).lost_focus() {
+                                if let Ok(mut sm) = self.speaker_manager.lock() {
+                                    sm.rename_speaker(speaker_id, &self.temp_name);
+                                }
+                                self.config.set_speaker_name(speaker_id.clone(), self.temp_name.clone());
+                                self.config.save("config.json");
+                                self.edit_speaker_id = None;
+                            }
+                        } else {
+                            // Colored button for the speaker's name
+                            if ui.button(egui::RichText::new(&speaker_name).color(color)).clicked() {
+                                self.edit_speaker_id = Some(speaker_id.clone());
+                                self.temp_name = speaker_name.clone();
+                            }
                         }
 
-                        // Timestamp (consider formatting it nicely)
-                        ui.label(format!("[{}] {}: {}", chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(chrono::NaiveDateTime::from_timestamp_opt(*timestamp, 0).unwrap(), chrono::Utc).format("%Y-%m-%d %H:%M:%S"), speaker_name, text));
+                        // Timestamp
+                        ui.label(format!("[{}] {}: {}", chrono::DateTime::<chrono::Utc>::from_timestamp(*timestamp, 0).unwrap().format("%Y-%m-%d %H:%M:%S"), speaker_name, text));
                     });
-
-                    // Handle editing mode
-                    if let Some(editing_id) = &self.edit_speaker_id {
-                        if editing_id == speaker_id {
-                            ui.horizontal(|ui| {
-                                ui.text_edit_singleline(&mut self.temp_name);
-                                if ui.button("Save").clicked() {
-                                    if let Ok(mut sm) = self.speaker_manager.lock() {
-                                        sm.rename_speaker(speaker_id, &self.temp_name);
-                                    }
-                                    self.config.set_speaker_name(speaker_id.clone(), self.temp_name.clone());
-                                    self.config.save("config.json");
-                                    self.edit_speaker_id = None;
-                                }
-                                if ui.button("Cancel").clicked() {
-                                    self.edit_speaker_id = None;
-                                }
-                            });
-                        }
-                    }
                 }
             });
         });
