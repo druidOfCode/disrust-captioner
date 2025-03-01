@@ -130,9 +130,25 @@ function createSpeakerRenameModal() {
 }
 
 // Toggle diarization
-function toggleDiarization() {
+async function toggleDiarization() {
   useDiarization = diarizationToggle.checked;
-  showStatusMessage(`Speaker diarization ${useDiarization ? 'enabled' : 'disabled'}`);
+  
+  if (useDiarization) {
+    try {
+      // Check what model is being used
+      const modelStatus = await invoke("get_diarization_model_status");
+      if (modelStatus === "advanced") {
+        showStatusMessage("Advanced speaker diarization enabled (TitaNet model)");
+      } else {
+        showStatusMessage("Basic speaker diarization enabled (fallback model)");
+      }
+    } catch (error) {
+      console.error("Failed to get model status:", error);
+      showStatusMessage("Speaker diarization enabled");
+    }
+  } else {
+    showStatusMessage("Speaker diarization disabled");
+  }
   
   // Clear status after 3 seconds
   setTimeout(clearStatusMessage, 3000);
