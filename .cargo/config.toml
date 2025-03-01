@@ -1,0 +1,13 @@
+[env]
+# Set macOS deployment target to 10.15 (Catalina) or higher
+MACOSX_DEPLOYMENT_TARGET = "10.15"
+
+# Environment variables for whisper-rs-sys
+WHISPER_DONT_GENERATE_BINDINGS = "1"
+
+# Set the path to CMake
+CMAKE = "/opt/homebrew/Cellar/cmake/3.31.6/bin/cmake"
+
+[build]
+# Additional build flags if needed
+rustflags = ["-C", "link-arg=-Wl,-rpath,@executable_path/../Frameworks"] 

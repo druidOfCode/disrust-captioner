@@ -1,0 +1,401 @@
+.logo.vanilla:hover {
+  filter: drop-shadow(0 0 2em #ffe21c);
+}
+:root {
+  font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Discord color scheme */
+  --bg-color: #36393f;
+  --text-color: #dcddde;
+  --sidebar-bg: #2f3136;
+  --terminal-bg: #202225;
+  --terminal-text: #dcddde;
+  --accent-color: #5865f2;
+  --recording-color: #ed4245;
+  --button-bg: #4f545c;
+  --button-text: #ffffff;
+  --button-hover: #686d73;
+  --button-active: #72767d;
+  --notification-bg: #2f3136;
+  --notification-border: #202225;
+  --notification-error: #ed4245;
+  --notification-success: #57f287;
+  --discord-green: #3ba55d;
+  --discord-yellow: #fee75c;
+  --discord-pink: #eb459e;
+  --discord-red: #ed4245;
+  --discord-blurple: #5865f2;
+
+  color: var(--text-color);
+  background-color: var(--bg-color);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Sidebar Styles */
+.sidebar {
+  width: 280px;
+  background-color: var(--sidebar-bg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-right: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.sidebar h1 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  text-align: center;
+  color: var(--text-color);
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-group label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+select {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: none;
+  background-color: #40444b;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 0.9rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23dcddde%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px top 50%;
+  background-size: 10px auto;
+}
+
+.recording-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 4px;
+  border: none;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.recording-button:hover {
+  background-color: var(--button-hover);
+}
+
+.recording-button:active {
+  background-color: var(--button-active);
+}
+
+.recording-button.active {
+  background-color: rgba(237, 66, 69, 0.2);
+  color: var(--recording-color);
+}
+
+.recording-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #ccc;
+}
+
+.recording-button.active .recording-indicator {
+  background-color: var(--recording-color);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.notification-area {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.status-message {
+  padding: 10px;
+  border-radius: 4px;
+  background-color: var(--notification-bg);
+  border: 1px solid var(--notification-border);
+  font-size: 0.9rem;
+  display: none;
+}
+
+.status-message.error {
+  display: block;
+  background-color: rgba(237, 66, 69, 0.1);
+  border-color: var(--notification-error);
+  color: var(--notification-error);
+}
+
+.status-message.success {
+  display: block;
+  background-color: rgba(87, 242, 135, 0.1);
+  border-color: var(--notification-success);
+  color: var(--notification-success);
+}
+
+/* Terminal Styles */
+.terminal-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--terminal-bg);
+  color: var(--terminal-text);
+  overflow: hidden;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.terminal-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.terminal-control {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.terminal-control.red {
+  background-color: #ff5f56;
+}
+
+.terminal-control.yellow {
+  background-color: #ffbd2e;
+}
+
+.terminal-control.green {
+  background-color: #27c93f;
+}
+
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.terminal-content {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.transcript {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+/* Add Discord-style scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #202225;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #2f3136;
+}
+
+/* Add Discord-style dropdown */
+select {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: none;
+  background-color: #40444b;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 0.9rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23dcddde%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px top 50%;
+  background-size: 10px auto;
+}
+
+/* Add Discord-style status message */
+.status-message {
+  padding: 10px;
+  border-radius: 4px;
+  background-color: var(--notification-bg);
+  border: 1px solid var(--notification-border);
+  font-size: 0.9rem;
+  display: none;
+}
+
+.status-message.error {
+  display: block;
+  background-color: rgba(237, 66, 69, 0.1);
+  border-color: var(--notification-error);
+  color: var(--notification-error);
+}
+
+.status-message.success {
+  display: block;
+  background-color: rgba(87, 242, 135, 0.1);
+  border-color: var(--notification-success);
+  color: var(--notification-success);
+}
+
+/* Add a new section for audio source selection */
+.audio-source-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.audio-source-selector label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.audio-source-toggle {
+  display: flex;
+  background-color: #40444b;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.audio-source-toggle button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background-color: transparent;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.audio-source-toggle button.active {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+/* Discord-style tooltip */
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip .tooltip-text {
+  visibility: hidden;
+  width: 200px;
+  background-color: #18191c;
+  color: var(--text-color);
+  text-align: center;
+  border-radius: 4px;
+  padding: 8px;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 0.85rem;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+}
+
+.tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Discord-style transcript entries */
+.transcript-entry {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.transcript-entry:first-child {
+  border-top: none;
+}
+
+.timestamp {
+  color: #72767d;
+  font-size: 0.75rem;
+  margin-right: 8px;
+}
+
+/* Dark mode is default for Discord */
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Light mode is still dark for Discord-like feel */
+    --bg-color: #36393f;
+    --text-color: #dcddde;
+    --sidebar-bg: #2f3136;
+    --terminal-bg: #202225;
+  }
+}

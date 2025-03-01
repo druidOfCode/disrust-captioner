@@ -1,155 +1,109 @@
-# disrust-captioner
+# Disrust Captioner
 
-Local, Offline **Captioning** & **Speaker Labeling** (in Rust), capturing Discord audio via loopback or a virtual audio device. 
+A Discord-inspired live captioning tool for voice calls and meetings. This application captures audio from your microphone or system audio and provides real-time transcription using the Whisper speech recognition model.
 
-> **Note**: We use **two** main components:
-> 1. **pyannote-rs** (Segmentation + Speaker Identification) for **who** is talking  
-> 2. **Whisper** (or another ASR) for **what** is being said  
+![Disrust Captioner Screenshot](screenshot.png)
 
-## Table of Contents
+## Features
 
-1. [Overview](#overview)  
-2. [Key Components](#key-components)  
-3. [Setup & Installation](#setup--installation)  
-4. [How It Works](#how-it-works)  
-5. [Usage](#usage)  
-6. [FAQ](#faq)  
-7. [Roadmap](#roadmap)  
+- **Live Captioning**: Real-time transcription of speech with timestamps
+- **Discord-Inspired UI**: Clean, modern interface with Discord's color scheme
+- **Multiple Audio Sources**: 
+  - Microphone input for your own voice
+  - System audio capture for Discord calls and other applications
+- **Device Selection**: Choose from available audio input devices
+- **Automatic Transcription**: Periodically transcribes during conversation gaps
+- **Voice Activity Detection**: Filters out silence for better transcription quality
 
----
-
-## 1. Overview
-
-**disrust-captioner** aims to provide real-time (or near real-time) **captions** for voice chats—particularly Discord voice channels—while also labeling each speaker. Everything runs locally on your machine, **offline**, so you’re not tied to any cloud APIs or monthly fees.
-
-- **Capture audio** from Discord via loopback  
-- **Segment & label** each speaker (using pyannote-rs)  
-- **Transcribe** the speaker’s words (using Whisper)  
-- **Display** text lines: “**Alice:** I can’t hear you...”  
-- **Rename** speakers on the fly, and persist those names for next session
-
----
-
-## 2. Key Components
-
-### A) pyannote-rs
-
-[**pyannote-rs**](https://github.com/thewh1teagle/pyannote-rs) is used for **speaker diarization**—i.e., determining:
-
-1. **When** speech occurs (using the `segmentation-3.0.onnx` model)  
-2. **Who** is talking (using the `wespeaker_en_voxceleb_CAM++.onnx` model to generate speaker embeddings and comparing them with cosine similarity)
-
-**Important**: pyannote-rs **does not** produce text. It only detects speech segments and identifies the speaker ID.
-
-### B) Whisper (or Another ASR)
-
-[**Whisper**](https://github.com/openai/whisper) (or `whisper.cpp`, `whisper-rs`) is used for **transcription**—i.e., figuring out **what** each speaker says. You need **an ASR engine** to produce the actual words for the captions. 
-
-**Key point**: 
-- **WeSpeaker** (from pyannote-rs) handles **who** is talking, not **what**.  
-- **Whisper** handles **what** is being said.
-
----
-
-## 3. Setup & Installation
+## Setup Instructions
 
 ### Prerequisites
 
-- **Rust** (1.65 or newer)  
-- **cpal** or a similar Rust library for audio capture (supports WASAPI loopback on Windows)  
-- **pyannote-rs** for speaker diarization  
-- **whisper.cpp**, **whisper-rs**, or the official Whisper Python binding (though we aim for a Rust-only solution)  
-- A **loopback or virtual audio device** so we can capture Discord’s output
+- Rust and Cargo installed
+- [Tauri CLI](https://tauri.app/v1/guides/getting-started/prerequisites/) installed
+- FFmpeg installed (required for audio processing)
 
-### Get the ONNX Models
+### Installation
 
-Download the pyannote-rs models from [their releases](https://github.com/thewh1teagle/pyannote-rs/releases):
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/disrust-captioner.git
+   cd disrust-captioner
+   ```
 
-```bash
-wget https://github.com/thewh1teagle/pyannote-rs/releases/download/v0.1.0/segmentation-3.0.onnx
-wget https://github.com/thewh1teagle/pyannote-rs/releases/download/v0.1.0/wespeaker_en_voxceleb_CAM++.onnx
-```
+2. Install dependencies:
+   ```
+   cargo install tauri-cli
+   ```
 
-Also set up your **Whisper** model files (e.g., `ggml-base.bin` or `ggml-small.bin`, etc.) if you’re using `whisper.cpp`.
+3. Build and run the application:
+   ```
+   cargo tauri dev
+   ```
 
-### Build & Run
+### System Audio Capture Setup
 
-In your project (`Cargo.toml`), ensure you have dependencies for `pyannote-rs`, your chosen ASR library (like `whisper-rs`), and your GUI framework (`egui`, `Iced`, etc.). Then:
+To capture system audio, you'll need to set up a virtual audio device:
 
-```bash
-cargo build --release
-cargo run --release
-```
+#### macOS
 
----
+1. Install [BlackHole](https://existential.audio/blackhole/):
+   ```
+   brew install blackhole-2ch
+   ```
 
-## 4. How It Works
+2. Open "Audio MIDI Setup" from Applications/Utilities
+3. Create a Multi-Output Device:
+   - Click the "+" button in the bottom left corner
+   - Select "Create Multi-Output Device"
+   - Check both "Built-in Output" and "BlackHole 2ch"
+4. Set the Multi-Output Device as your default output in System Preferences > Sound
 
-### 1) Audio Loopback
+#### Windows
 
-- We use **cpal** or a similar crate to capture the system’s output audio. On Windows with WASAPI, you can open the default output device in loopback mode.  
-- Alternatively, use a virtual audio cable: set Discord to output to the cable, and capture that cable as an input.
+1. Install [VB-Cable](https://vb-audio.com/Cable/)
+2. Set VB-Cable as your default playback device
+3. In Discord, set the output device to VB-Cable
 
-### 2) Segment & Label Speakers (pyannote-rs)
+#### Linux
 
-- **segmentation-3.0** tells us the time ranges in which speech occurs.  
-- For each speech segment, we use the **wespeaker** model to produce an **embedding**.  
-- We compare embeddings to decide if it’s a previously known speaker or a new speaker (`person1`, `person2`, etc.). 
+1. Use PulseAudio's built-in loopback module:
+   ```
+   pactl load-module module-loopback latency_msec=1
+   ```
 
-### 3) Transcription (Whisper)
+## Usage
 
-- In parallel, for each speech segment (or for the entire chunk of audio that contains speech), we run **Whisper** to get the text.  
-- We associate that text with the speaker label returned by pyannote-rs.
+1. Launch the application
+2. Select your audio input device from the dropdown
+3. Choose between microphone or system audio
+4. Click "Start Recording" to begin capturing and transcribing
+5. The transcript will appear in the main panel with timestamps
+6. Click "Stop Recording" to end the session
 
-### 4) Display & Renaming
+## Development
 
-- We then show lines like:  
-  - **person1 (0.0s - 2.0s):** “Hey guys, can you hear me?”  
-  - **person2 (2.0s - 5.0s):** “Yes, I can!”  
-- The UI allows you to rename `person1` → “Alice,” `person2` → “Bob.” This is saved in a JSON file so you don’t have to rename them every time.
+This application is built with:
 
----
+- [Tauri](https://tauri.app/) - Desktop application framework
+- [Rust](https://www.rust-lang.org/) - Backend language
+- [Whisper](https://github.com/openai/whisper) - Speech recognition model
+- HTML/CSS/JavaScript - Frontend
 
-## 5. Usage
+## License
 
-1. **Launch disrust-captioner**.  
-2. **Select the loopback device** from the app’s dropdown (or pass a CLI argument, depending on how you design it).  
-3. Join a Discord voice channel; audio from your friends should be captured via loopback.  
-4. As they speak, the app segments, identifies who is speaking (person1, person2, etc.), and transcribes.  
-5. You see lines appear in the UI with speaker labels and text.  
-6. Click on a speaker label to rename them if desired.  
+MIT License
 
----
+## Changelog
 
-## 6. FAQ
+### v0.2.0 (Current)
+- Added Discord-inspired UI
+- Implemented system audio capture
+- Added audio source selection
+- Improved transcript display with timestamps
+- Enhanced error handling and user feedback
 
-**Q1. Can’t pyannote-rs transcribe text too, via WeSpeaker?**  
-A: **No.** WeSpeaker does **speaker embeddings**—_who_ is speaking, not _what_ they’re saying. You still need a dedicated **ASR engine** (e.g., Whisper) for transcription.
-
-**Q2. Will it work on macOS or Linux?**  
-A: The core logic is OS-independent, but capturing loopback audio might require platform-specific configs. Linux has `pulse` or `pipewire` loopback modules; macOS might need [BlackHole](https://github.com/ExistentialAudio/BlackHole) or similar.  
-
-**Q3. What about overlapping speakers?**  
-A: pyannote-rs can detect overlapping segments. We do our best, but perfect overlap labeling is still tricky. The UI might list partial overlaps if two people speak simultaneously.
-
-**Q4. Is this truly real-time?**  
-A: There’s a slight delay because we typically buffer 1–2 seconds of audio (or up to ~10 seconds in some diarization setups). For most conversational use, that’s acceptable.
-
----
-
-## 7. Roadmap
-
-1. **Always-On-Top Window / Overlay**  
-   - Currently, we just show a small Rust GUI you can place beside Discord. We plan to explore a game-style overlay later.
-2. **Optimized Chunking**  
-   - Fine-tune how we chunk audio for segmentation and transcription, reducing delay and CPU/GPU load.
-3. **Speaker Database**  
-   - Save embeddings + names so next time your friend joins, we instantly recognize them.
-4. **Cross-Platform Support**  
-   - Provide clear instructions for loopback on macOS and Linux.
-
----
-
-**Enjoy your local, offline, speaker-labeled captions!** If you have any issues, suggestions, or improvements, open a pull request or file an issue in this repository. 
-
-_**Remember**: pyannote-rs + WeSpeaker = who’s speaking; Whisper = what they’re saying._
+### v0.1.0
+- Initial release
+- Basic microphone capture and transcription
+- Simple UI with recording controls
