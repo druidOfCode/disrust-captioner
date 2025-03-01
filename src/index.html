@@ -1,65 +1,76 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Disrust Captioner</title>
-    <script type="module" src="/main.js" defer></script>
+    <script type="module" src="main.js" defer></script>
   </head>
 
   <body>
     <div class="app-container">
-      <!-- Sidebar for controls -->
-      <div class="sidebar">
+      <header class="app-header">
         <h1>Disrust Captioner</h1>
-        
-        <div class="control-group">
-          <label for="audio-device">Input Device:</label>
-          <select id="audio-device">
-            <option value="default">Default Device</option>
-            <!-- Will be populated with available devices -->
-          </select>
-        </div>
-        
-        <div class="audio-source-selector">
-          <label>Audio Source:</label>
-          <div class="audio-source-toggle">
-            <button id="mic-source" class="active">Microphone</button>
-            <button id="system-source">System Audio</button>
-          </div>
-          <div class="tooltip">
-            <span class="info-icon">ℹ️</span>
-            <span class="tooltip-text">System audio requires additional setup. See README for details.</span>
-          </div>
-        </div>
-        
-        <div class="control-group">
-          <button id="toggle-recording" class="recording-button">
-            <span class="button-text">Start Recording</span>
-            <div class="recording-indicator"></div>
-          </button>
-        </div>
-        
-        <div class="notification-area">
-          <div id="status-message" class="status-message"></div>
-        </div>
-      </div>
+        <div class="status-message" id="status-message"></div>
+      </header>
       
-      <!-- Terminal-like display area -->
-      <div class="terminal-container">
-        <div class="terminal-header">
-          <div class="terminal-controls">
-            <span class="terminal-control red"></span>
-            <span class="terminal-control yellow"></span>
-            <span class="terminal-control green"></span>
+      <main class="app-content">
+        <div class="transcript-container">
+          <div class="transcript" id="transcript"></div>
+        </div>
+        
+        <div class="controls-container">
+          <div class="control-group">
+            <label for="audio-device">Audio Device:</label>
+            <select id="audio-device">
+              <option value="default">Default Device</option>
+              <!-- Will be populated with available devices -->
+            </select>
           </div>
-          <div class="terminal-title">Live Captions</div>
+          
+          <div class="control-group">
+            <fieldset class="audio-source-fieldset">
+              <legend>Audio Source:</legend>
+              <div class="radio-group">
+                <div class="radio-option">
+                  <input type="radio" id="mic-source" name="audio-source" value="microphone" checked />
+                  <label for="mic-source" class="source-button active">
+                    <span class="icon">🎤</span>
+                    <span class="label">Microphone</span>
+                  </label>
+                </div>
+                <div class="radio-option">
+                  <input type="radio" id="system-source" name="audio-source" value="system" />
+                  <label for="system-source" class="source-button">
+                    <span class="icon">🔊</span>
+                    <span class="label">System Audio</span>
+                  </label>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+          
+          <div class="control-group">
+            <div class="toggle-switch">
+              <input type="checkbox" id="diarization-toggle" />
+              <label for="diarization-toggle">Speaker Diarization</label>
+              <span class="toggle-label" id="diarization-description">Identify different speakers</span>
+            </div>
+          </div>
+          
+          <div class="control-group">
+            <button id="toggle-recording" class="primary-button">
+              <div class="recording-indicator"></div>
+              <span class="button-text">Start Recording</span>
+            </button>
+          </div>
         </div>
-        <div class="terminal-content">
-          <div id="transcript" class="transcript"></div>
-        </div>
-      </div>
+      </main>
+      
+      <footer class="app-footer">
+        <p>Powered by Whisper and Tauri</p>
+      </footer>
     </div>
   </body>
 </html>

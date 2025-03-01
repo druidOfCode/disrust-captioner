@@ -2,6 +2,7 @@
 
 use whisper_rs::{WhisperContext, FullParams, WhisperContextParameters, SamplingStrategy};
 use std::path::Path;
+use crate::diarize;
 
 pub fn transcribe(samples: &[f32]) -> Result<String, String> {
     // Check if we have enough audio data
@@ -56,7 +57,7 @@ pub fn transcribe(samples: &[f32]) -> Result<String, String> {
     params.set_print_special(false);
     params.set_print_progress(false);
     params.set_print_realtime(false);
-    params.set_print_timestamps(false);
+    params.set_print_timestamps(true); // Enable timestamps for diarization
     params.set_language(Some("en")); // Force English language
     
     // Normalize the audio to ensure it's within the expected range
@@ -78,14 +79,24 @@ pub fn transcribe(samples: &[f32]) -> Result<String, String> {
     println!("Transcription produced {} segments", num_segments);
     
     let mut transcript = String::new();
+    let mut timestamps = Vec::new();
     
-    // Iterate through segments and collect text
+    // Iterate through segments and collect text with timestamps
     for i in 0..num_segments {
         let segment_text = state.full_get_segment_text(i)
             .map_err(|e| format!("Failed to get segment text: {}", e))?;
-        println!("Segment {}: {}", i, segment_text);
+        
+        let start_time = state.full_get_segment_t0(i)
+            .map_err(|e| format!("Failed to get segment start time: {}", e))? as f32 / 100.0;
+        
+        let end_time = state.full_get_segment_t1(i)
+            .map_err(|e| format!("Failed to get segment end time: {}", e))? as f32 / 100.0;
+        
+        println!("Segment {}: [{:.2}-{:.2}] {}", i, start_time, end_time, segment_text);
         transcript.push_str(&segment_text);
         transcript.push(' ');
+        
+        timestamps.push((start_time, end_time));
     }
     
     // If no text was transcribed, provide a helpful message
@@ -96,6 +107,62 @@ pub fn transcribe(samples: &[f32]) -> Result<String, String> {
     
     println!("Final transcript: {}", transcript);
     Ok(transcript)
+}
+
+// Function to transcribe with diarization
+pub fn transcribe_with_diarization(samples: &[f32]) -> Result<String, String> {
+    // First, perform regular transcription
+    let transcript = transcribe(samples)?;
+    
+    // Get timestamps from Whisper
+    let timestamps = extract_word_timestamps(samples)?;
+    
+    // If we couldn't get proper timestamps, create approximate ones
+    let timestamps = if timestamps.is_empty() {
+        // Create approximate timestamps
+        let words: Vec<&str> = transcript.split_whitespace().collect();
+        let duration = samples.len() as f32 / 16000.0;
+        
+        // More sophisticated time distribution - allocate time based on word length
+        let total_chars = words.iter().map(|w| w.len()).sum::<usize>() as f32;
+        let time_per_char = duration / total_chars;
+        
+        let mut current_time = 0.0;
+        let mut word_timestamps = Vec::new();
+        
+        for word in &words {
+            let word_duration = word.len() as f32 * time_per_char;
+            let start_time = current_time;
+            let end_time = current_time + word_duration;
+            
+            word_timestamps.push((start_time, end_time));
+            current_time = end_time;
+        }
+        
+        word_timestamps
+    } else {
+        timestamps
+    };
+    
+    // Then, perform diarization
+    let diarization_result = diarize::diarize(samples, 16000);
+    
+    // Combine transcription with diarization
+    let diarized_transcript = diarize::combine_with_transcription(
+        &diarization_result,
+        &transcript,
+        &timestamps
+    );
+    
+    Ok(diarized_transcript)
+}
+
+// Extract word timestamps from audio using Whisper
+// This is a placeholder - in a real implementation, you would get these from Whisper
+fn extract_word_timestamps(_samples: &[f32]) -> Result<Vec<(f32, f32)>, String> {
+    // In a real implementation, you would extract these from Whisper's output
+    // For now, we'll return an empty vector to trigger the fallback mechanism
+    Ok(Vec::new())
 }
 
 // Function to normalize audio to ensure it's within the expected range

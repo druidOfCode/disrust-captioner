@@ -1,401 +1,442 @@
-.logo.vanilla:hover {
-  filter: drop-shadow(0 0 2em #ffe21c);
-}
 :root {
-  font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  font-weight: 400;
-
-  /* Discord color scheme */
-  --bg-color: #36393f;
-  --text-color: #dcddde;
-  --sidebar-bg: #2f3136;
-  --terminal-bg: #202225;
-  --terminal-text: #dcddde;
-  --accent-color: #5865f2;
-  --recording-color: #ed4245;
-  --button-bg: #4f545c;
-  --button-text: #ffffff;
-  --button-hover: #686d73;
-  --button-active: #72767d;
-  --notification-bg: #2f3136;
-  --notification-border: #202225;
-  --notification-error: #ed4245;
-  --notification-success: #57f287;
-  --discord-green: #3ba55d;
-  --discord-yellow: #fee75c;
-  --discord-pink: #eb459e;
-  --discord-red: #ed4245;
-  --discord-blurple: #5865f2;
-
-  color: var(--text-color);
-  background-color: var(--bg-color);
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+  --discord-bg: #36393f;
+  --discord-sidebar: #2f3136;
+  --discord-text: #dcddde;
+  --discord-highlight: #7289da;
+  --discord-highlight-hover: #677bc4;
+  --discord-dark: #202225;
+  --discord-green: #43b581;
+  --discord-red: #f04747;
+  --discord-yellow: #faa61a;
+  --discord-input: #40444b;
+  --discord-border: #26282c;
+  --discord-timestamp: #72767d;
+  --discord-speaker1: #7289da;
+  --discord-speaker2: #43b581;
+  --discord-speaker3: #faa61a;
+  --discord-speaker4: #f04747;
+  --discord-speaker5: #2d9cdb;
+  --discord-speaker6: #bb86fc;
+  --discord-speaker7: #ff7597;
+  --discord-speaker8: #4cd97b;
+  --font-sans: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --transition-speed: 0.2s;
 }
 
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
 body {
-  margin: 0;
-  padding: 0;
+  font-family: var(--font-sans);
+  background-color: var(--discord-bg);
+  color: var(--discord-text);
+  line-height: 1.5;
   height: 100vh;
   overflow: hidden;
 }
 
 .app-container {
   display: flex;
+  flex-direction: column;
   height: 100vh;
-  width: 100vw;
 }
 
-/* Sidebar Styles */
-.sidebar {
-  width: 280px;
-  background-color: var(--sidebar-bg);
-  padding: 20px;
+.app-header {
+  background-color: var(--discord-dark);
+  padding: 1rem;
   display: flex;
-  flex-direction: column;
-  gap: 20px;
-  border-right: 1px solid rgba(0, 0, 0, 0.2);
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--discord-border);
 }
 
-.sidebar h1 {
+.app-header h1 {
   font-size: 1.5rem;
-  margin-bottom: 20px;
-  text-align: center;
-  color: var(--text-color);
+  font-weight: 700;
+  color: var(--discord-highlight);
 }
 
-.control-group {
+.app-content {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.transcript-container {
+  flex: 1;
+  overflow: hidden;
+  padding: 1rem;
+  background-color: var(--discord-bg);
+}
+
+.transcript {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.controls-container {
+  width: 300px;
+  background-color: var(--discord-sidebar);
+  padding: 1rem;
+  border-left: 1px solid var(--discord-border);
+  overflow-y: auto;
+}
+
+.app-footer {
+  background-color: var(--discord-dark);
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--discord-timestamp);
+  border-top: 1px solid var(--discord-border);
+}
+
+/* Control elements */
+.control-group {
+  margin-bottom: 1.5rem;
 }
 
 .control-group label {
-  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 0.5rem;
   font-weight: 600;
-}
-
-select {
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: none;
-  background-color: #40444b;
-  color: var(--text-color);
-  font-family: inherit;
   font-size: 0.9rem;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23dcddde%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px top 50%;
-  background-size: 10px auto;
 }
 
-.recording-button {
+select, input[type="text"] {
+  width: 100%;
+  padding: 0.5rem;
+  background-color: var(--discord-input);
+  border: 1px solid var(--discord-border);
+  border-radius: 4px;
+  color: var(--discord-text);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+}
+
+select:focus, input[type="text"]:focus {
+  outline: none;
+  border-color: var(--discord-highlight);
+}
+
+/* Fieldset for radio buttons */
+.audio-source-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.audio-source-fieldset legend {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.radio-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.radio-option {
+  flex: 1;
   position: relative;
+}
+
+/* Hide the actual radio input but keep it accessible */
+.radio-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* Style the label to look like the original button */
+.source-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: var(--discord-input);
+  border: 1px solid var(--discord-border);
+  border-radius: 4px;
+  color: var(--discord-text);
+  cursor: pointer;
+  transition: background-color var(--transition-speed);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.source-button .icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.source-button .label {
+  font-size: 0.8rem;
+}
+
+/* Style for checked radio button */
+input[type="radio"]:checked + .source-button {
+  background-color: var(--discord-highlight);
+  border-color: var(--discord-highlight-hover);
+}
+
+input[type="radio"]:focus + .source-button {
+  outline: 2px solid var(--discord-highlight);
+  outline-offset: 2px;
+}
+
+.source-button:hover {
+  background-color: var(--discord-dark);
+}
+
+input[type="radio"]:checked + .source-button:hover {
+  background-color: var(--discord-highlight-hover);
+}
+
+.primary-button {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--discord-highlight);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--transition-speed);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 12px 20px;
+  gap: 0.5rem;
+}
+
+.primary-button:hover {
+  background-color: var(--discord-highlight-hover);
+}
+
+.secondary-button {
+  padding: 0.5rem 1rem;
+  background-color: var(--discord-input);
+  border: 1px solid var(--discord-border);
   border-radius: 4px;
-  border: none;
-  background-color: var(--button-bg);
-  color: var(--button-text);
-  font-weight: 500;
+  color: var(--discord-text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-speed);
 }
 
-.recording-button:hover {
-  background-color: var(--button-hover);
-}
-
-.recording-button:active {
-  background-color: var(--button-active);
-}
-
-.recording-button.active {
-  background-color: rgba(237, 66, 69, 0.2);
-  color: var(--recording-color);
+.secondary-button:hover {
+  background-color: var(--discord-dark);
 }
 
 .recording-indicator {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background-color: #ccc;
+  background-color: var(--discord-red);
+  opacity: 0.5;
+  transition: opacity var(--transition-speed);
 }
 
-.recording-button.active .recording-indicator {
-  background-color: var(--recording-color);
+.recording-indicator.active {
+  opacity: 1;
   animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
   0% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
     opacity: 0.5;
-    transform: scale(1.1);
   }
   100% {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
-.notification-area {
-  margin-top: auto;
-  padding-top: 20px;
-}
-
-.status-message {
-  padding: 10px;
-  border-radius: 4px;
-  background-color: var(--notification-bg);
-  border: 1px solid var(--notification-border);
-  font-size: 0.9rem;
-  display: none;
-}
-
-.status-message.error {
-  display: block;
-  background-color: rgba(237, 66, 69, 0.1);
-  border-color: var(--notification-error);
-  color: var(--notification-error);
-}
-
-.status-message.success {
-  display: block;
-  background-color: rgba(87, 242, 135, 0.1);
-  border-color: var(--notification-success);
-  color: var(--notification-success);
-}
-
-/* Terminal Styles */
-.terminal-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--terminal-bg);
-  color: var(--terminal-text);
-  overflow: hidden;
-}
-
-.terminal-header {
+/* Toggle switch for diarization */
+.toggle-switch {
   display: flex;
   align-items: center;
-  padding: 10px 15px;
-  background-color: rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
 }
 
-.terminal-controls {
+.toggle-switch input[type="checkbox"] {
+  height: 0;
+  width: 0;
+  visibility: hidden;
+  position: absolute;
+}
+
+.toggle-switch label {
+  cursor: pointer;
   display: flex;
-  gap: 8px;
-}
-
-.terminal-control {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.terminal-control.red {
-  background-color: #ff5f56;
-}
-
-.terminal-control.yellow {
-  background-color: #ffbd2e;
-}
-
-.terminal-control.green {
-  background-color: #27c93f;
-}
-
-.terminal-title {
-  flex: 1;
-  text-align: center;
+  align-items: center;
+  margin-right: 10px;
+  margin-bottom: 0;
+  font-weight: 600;
   font-size: 0.9rem;
-  opacity: 0.8;
 }
 
-.terminal-content {
-  flex: 1;
-  padding: 15px;
-  overflow-y: auto;
+.toggle-switch label:before {
+  content: '';
+  width: 50px;
+  height: 24px;
+  background: var(--discord-input);
+  display: inline-block;
+  border-radius: 100px;
+  position: relative;
+  margin-right: 10px;
 }
 
-.transcript {
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.6;
+.toggle-switch label:after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: var(--discord-text);
+  border-radius: 90px;
+  transition: 0.3s;
 }
 
-/* Add Discord-style scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+.toggle-switch input:checked + label:before {
+  background: var(--discord-highlight);
 }
 
-::-webkit-scrollbar-track {
-  background-color: transparent;
+.toggle-switch input:checked + label:after {
+  left: 35px;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: #202225;
-  border-radius: 4px;
+.toggle-label {
+  font-size: 0.8rem;
+  color: var(--discord-text);
+  margin-left: 10px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: #2f3136;
-}
-
-/* Add Discord-style dropdown */
-select {
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: none;
-  background-color: #40444b;
-  color: var(--text-color);
-  font-family: inherit;
-  font-size: 0.9rem;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23dcddde%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px top 50%;
-  background-size: 10px auto;
-}
-
-/* Add Discord-style status message */
-.status-message {
-  padding: 10px;
-  border-radius: 4px;
-  background-color: var(--notification-bg);
-  border: 1px solid var(--notification-border);
-  font-size: 0.9rem;
-  display: none;
-}
-
-.status-message.error {
-  display: block;
-  background-color: rgba(237, 66, 69, 0.1);
-  border-color: var(--notification-error);
-  color: var(--notification-error);
-}
-
-.status-message.success {
-  display: block;
-  background-color: rgba(87, 242, 135, 0.1);
-  border-color: var(--notification-success);
-  color: var(--notification-success);
-}
-
-/* Add a new section for audio source selection */
-.audio-source-selector {
+/* Transcript styling */
+.transcript-entry {
+  margin-bottom: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 20px;
 }
 
-.audio-source-selector label {
-  font-size: 0.9rem;
+.transcript-entry .timestamp {
+  font-size: 0.7rem;
+  color: var(--discord-timestamp);
+  margin-bottom: 0.25rem;
+}
+
+.transcript-entry .content {
+  background-color: var(--discord-input);
+  padding: 0.75rem;
+  border-radius: 4px;
+  word-break: break-word;
+}
+
+.transcript-entry.system-message .content {
+  background-color: var(--discord-dark);
+  color: var(--discord-yellow);
+  font-style: italic;
+}
+
+.transcript-entry.diarized {
+  margin-bottom: 0.5rem;
+}
+
+.transcript-entry.diarized .speaker-label {
   font-weight: 600;
-  color: var(--text-color);
-}
-
-.audio-source-toggle {
+  margin-bottom: 0.25rem;
   display: flex;
-  background-color: #40444b;
-  border-radius: 4px;
-  overflow: hidden;
+  align-items: center;
 }
 
-.audio-source-toggle button {
-  flex: 1;
-  padding: 8px 12px;
+/* Speaker colors are now set dynamically in JavaScript */
+
+.rename-button {
+  background: none;
   border: none;
-  background-color: transparent;
-  color: var(--text-color);
-  font-size: 0.9rem;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+  opacity: 0.5;
+  transition: opacity var(--transition-speed);
 }
 
-.audio-source-toggle button.active {
-  background-color: var(--accent-color);
-  color: white;
-}
-
-/* Discord-style tooltip */
-.tooltip {
-  position: relative;
-  display: inline-block;
-}
-
-.tooltip .tooltip-text {
-  visibility: hidden;
-  width: 200px;
-  background-color: #18191c;
-  color: var(--text-color);
-  text-align: center;
-  border-radius: 4px;
-  padding: 8px;
-  position: absolute;
-  z-index: 1;
-  bottom: 125%;
-  left: 50%;
-  transform: translateX(-50%);
-  opacity: 0;
-  transition: opacity 0.3s;
-  font-size: 0.85rem;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-}
-
-.tooltip:hover .tooltip-text {
-  visibility: visible;
+.rename-button:hover {
   opacity: 1;
 }
 
-/* Discord-style transcript entries */
-.transcript-entry {
-  padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+/* Status message */
+.status-message {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background-color: var(--discord-input);
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity var(--transition-speed);
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.transcript-entry:first-child {
-  border-top: none;
+.status-message.visible {
+  opacity: 1;
 }
 
-.timestamp {
-  color: #72767d;
-  font-size: 0.75rem;
-  margin-right: 8px;
+.status-message.error {
+  background-color: var(--discord-red);
+  color: white;
 }
 
-/* Dark mode is default for Discord */
-@media (prefers-color-scheme: light) {
-  :root {
-    /* Light mode is still dark for Discord-like feel */
-    --bg-color: #36393f;
-    --text-color: #dcddde;
-    --sidebar-bg: #2f3136;
-    --terminal-bg: #202225;
-  }
+/* Modal for speaker renaming */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  overflow: auto;
+}
+
+.modal-content {
+  background-color: var(--discord-sidebar);
+  margin: 15% auto;
+  padding: 1.5rem;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90%;
+}
+
+#speaker-rename-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+#speaker-rename-form h2 {
+  color: var(--discord-highlight);
+  margin-bottom: 0.5rem;
+}
+
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }

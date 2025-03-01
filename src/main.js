@@ -9,6 +9,12 @@ let statusMessageEl;
 let audioDeviceSelect;
 let micSourceBtn;
 let systemSourceBtn;
+let diarizationToggle;
+let speakerRenameModal;
+let speakerRenameForm;
+let speakerRenameInput;
+let speakerRenameSubmit;
+let speakerRenameCancel;
 
 // State
 let isRecording = false;
@@ -17,6 +23,8 @@ let silenceTimeout = 2000; // 2 seconds of silence before transcribing
 let lastAudioLevel = 0;
 let audioLevelCheckInterval = null;
 let isSystemAudio = false; // Track if we're using system audio
+let useDiarization = false; // Track if diarization is enabled
+let currentSpeakers = new Map(); // Map to store speaker names
 
 // Initialize the application
 window.addEventListener("DOMContentLoaded", () => {
@@ -29,12 +37,17 @@ window.addEventListener("DOMContentLoaded", () => {
   audioDeviceSelect = document.querySelector("#audio-device");
   micSourceBtn = document.querySelector("#mic-source");
   systemSourceBtn = document.querySelector("#system-source");
+  diarizationToggle = document.querySelector("#diarization-toggle");
+  
+  // Create speaker rename modal elements
+  createSpeakerRenameModal();
   
   // Set up event listeners
   toggleRecordingBtn.addEventListener("click", toggleRecording);
   audioDeviceSelect.addEventListener("change", handleDeviceChange);
-  micSourceBtn.addEventListener("click", () => setAudioSource('microphone'));
-  systemSourceBtn.addEventListener("click", () => setAudioSource('system'));
+  micSourceBtn.addEventListener("change", () => setAudioSource('microphone'));
+  systemSourceBtn.addEventListener("change", () => setAudioSource('system'));
+  diarizationToggle.addEventListener("change", toggleDiarization);
   
   // Populate audio devices
   populateAudioDevices();
@@ -42,6 +55,88 @@ window.addEventListener("DOMContentLoaded", () => {
   // Show welcome message
   appendTranscript("Welcome to Disrust Captioner! Click 'Start Recording' to begin capturing audio.", true);
 });
+
+// Create speaker rename modal
+function createSpeakerRenameModal() {
+  // Create modal container
+  speakerRenameModal = document.createElement('div');
+  speakerRenameModal.className = 'modal';
+  speakerRenameModal.id = 'speaker-rename-modal';
+  speakerRenameModal.style.display = 'none';
+  
+  // Create modal content
+  const modalContent = document.createElement('div');
+  modalContent.className = 'modal-content';
+  
+  // Create form
+  speakerRenameForm = document.createElement('form');
+  speakerRenameForm.id = 'speaker-rename-form';
+  
+  // Create title
+  const title = document.createElement('h2');
+  title.textContent = 'Rename Speaker';
+  
+  // Create input
+  const inputLabel = document.createElement('label');
+  inputLabel.textContent = 'New Name:';
+  inputLabel.htmlFor = 'speaker-name-input';
+  
+  speakerRenameInput = document.createElement('input');
+  speakerRenameInput.type = 'text';
+  speakerRenameInput.id = 'speaker-name-input';
+  speakerRenameInput.required = true;
+  
+  // Create buttons
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'button-container';
+  
+  speakerRenameSubmit = document.createElement('button');
+  speakerRenameSubmit.type = 'submit';
+  speakerRenameSubmit.textContent = 'Save';
+  speakerRenameSubmit.className = 'primary-button';
+  
+  speakerRenameCancel = document.createElement('button');
+  speakerRenameCancel.type = 'button';
+  speakerRenameCancel.textContent = 'Cancel';
+  speakerRenameCancel.className = 'secondary-button';
+  
+  // Assemble modal
+  buttonContainer.appendChild(speakerRenameSubmit);
+  buttonContainer.appendChild(speakerRenameCancel);
+  
+  speakerRenameForm.appendChild(title);
+  speakerRenameForm.appendChild(inputLabel);
+  speakerRenameForm.appendChild(speakerRenameInput);
+  speakerRenameForm.appendChild(buttonContainer);
+  
+  modalContent.appendChild(speakerRenameForm);
+  speakerRenameModal.appendChild(modalContent);
+  
+  // Add to document
+  document.body.appendChild(speakerRenameModal);
+  
+  // Set up event listeners
+  speakerRenameForm.addEventListener('submit', handleSpeakerRename);
+  speakerRenameCancel.addEventListener('click', () => {
+    speakerRenameModal.style.display = 'none';
+  });
+  
+  // Close modal when clicking outside
+  window.addEventListener('click', (event) => {
+    if (event.target === speakerRenameModal) {
+      speakerRenameModal.style.display = 'none';
+    }
+  });
+}
+
+// Toggle diarization
+function toggleDiarization() {
+  useDiarization = diarizationToggle.checked;
+  showStatusMessage(`Speaker diarization ${useDiarization ? 'enabled' : 'disabled'}`);
+  
+  // Clear status after 3 seconds
+  setTimeout(clearStatusMessage, 3000);
+}
 
 // Set audio source (microphone or system)
 async function setAudioSource(source) {
@@ -54,12 +149,16 @@ async function setAudioSource(source) {
   
   // Update UI
   if (isSystemAudio) {
-    micSourceBtn.classList.remove('active');
-    systemSourceBtn.classList.add('active');
+    micSourceBtn.checked = false;
+    systemSourceBtn.checked = true;
+    document.querySelector('label[for="mic-source"]').classList.remove('active');
+    document.querySelector('label[for="system-source"]').classList.add('active');
     showStatusMessage("System audio mode activated. Make sure you have the proper virtual audio device set up.");
   } else {
-    systemSourceBtn.classList.remove('active');
-    micSourceBtn.classList.add('active');
+    systemSourceBtn.checked = false;
+    micSourceBtn.checked = true;
+    document.querySelector('label[for="system-source"]').classList.remove('active');
+    document.querySelector('label[for="mic-source"]').classList.add('active');
     showStatusMessage("Microphone mode activated.");
   }
   
@@ -99,7 +198,7 @@ async function populateAudioDevices() {
     }
   } catch (error) {
     console.error("Failed to get input devices:", error);
-    showErrorMessage("Failed to get audio devices. Using default device.");
+    showErrorMessage(`Failed to get input devices: ${error}`);
   }
 }
 
@@ -115,11 +214,8 @@ async function toggleRecording() {
 // Start recording
 async function startRecording() {
   try {
-    clearStatusMessage();
-    
-    // Check if we need to set up system audio
+    // Start recording based on selected source
     if (isSystemAudio) {
-      showStatusMessage("Starting system audio capture...");
       await invoke("start_recording_system");
     } else {
       await invoke("start_recording");
@@ -127,191 +223,343 @@ async function startRecording() {
     
     // Update UI
     isRecording = true;
-    toggleRecordingBtn.classList.add("active");
     toggleRecordingText.textContent = "Stop Recording";
+    recordingIndicator.classList.add("active");
     
-    // Start checking for silence
+    // Start silence detection
     startSilenceDetection();
     
-    console.log("Recording started");
+    showStatusMessage("Recording started...");
   } catch (error) {
-    showErrorMessage(`Failed to start recording: ${error}`);
     console.error("Failed to start recording:", error);
+    showErrorMessage(`Failed to start recording: ${error}`);
   }
 }
 
-// Handle device selection change
+// Handle device change
 async function handleDeviceChange() {
   const deviceId = audioDeviceSelect.value;
   
   try {
-    // If "default" is selected, pass null to use the system default
-    const selectedId = deviceId === "default" ? null : deviceId;
-    await invoke("set_input_device", { deviceId: selectedId });
-    
-    // If we're currently recording, restart the recording with the new device
+    // If recording, stop first
     if (isRecording) {
-      await stopRecording(false); // Stop without updating UI
-      await startRecording();
+      await stopRecording();
     }
+    
+    // Set the selected device
+    await invoke("set_input_device", { deviceId: deviceId === "default" ? null : deviceId });
+    
+    showStatusMessage(`Audio device changed to: ${audioDeviceSelect.options[audioDeviceSelect.selectedIndex].text}`);
+    
+    // Clear status after 3 seconds
+    setTimeout(clearStatusMessage, 3000);
   } catch (error) {
-    console.error("Failed to set input device:", error);
-    showErrorMessage(`Failed to set input device: ${error}`);
+    console.error("Failed to change audio device:", error);
+    showErrorMessage(`Failed to change audio device: ${error}`);
   }
 }
 
-// Stop recording and transcribe
+// Stop recording
 async function stopRecording(updateUI = true) {
   try {
     // Stop silence detection
     stopSilenceDetection();
     
-    // Update UI if requested
-    if (updateUI) {
-      isRecording = false;
-      toggleRecordingBtn.classList.remove("active");
-      toggleRecordingText.textContent = "Start Recording";
-      
-      // Show processing message
-      showStatusMessage("Processing audio...");
-    }
-    
-    // Get transcription
+    // Get transcription based on selected source and diarization setting
     let transcript;
     if (isSystemAudio) {
-      transcript = await invoke("stop_recording_system");
+      if (useDiarization) {
+        transcript = await invoke("stop_recording_system_with_diarization");
+      } else {
+        transcript = await invoke("stop_recording_system");
+      }
     } else {
-      transcript = await invoke("stop_recording");
+      if (useDiarization) {
+        transcript = await invoke("stop_recording_with_diarization");
+      } else {
+        transcript = await invoke("stop_recording");
+      }
     }
     
-    // Update transcript display if we got meaningful text and UI update is requested
-    if (updateUI && transcript && !transcript.includes("[BLANK_AUDIO]")) {
-      appendTranscript(transcript);
-      
-      // Clear status message
-      clearStatusMessage();
+    // Update UI
+    if (updateUI) {
+      isRecording = false;
+      toggleRecordingText.textContent = "Start Recording";
+      recordingIndicator.classList.remove("active");
     }
     
-    console.log("Recording stopped");
+    // Process and display transcript
+    if (transcript) {
+      if (useDiarization) {
+        appendDiarizedTranscript(transcript);
+      } else {
+        appendTranscript(transcript);
+      }
+    }
+    
     return transcript;
   } catch (error) {
-    if (updateUI) {
-      showErrorMessage(`Failed to stop recording: ${error}`);
-    }
     console.error("Failed to stop recording:", error);
-    throw error;
+    showErrorMessage(`Failed to stop recording: ${error}`);
+    
+    // Update UI even on error
+    if (updateUI) {
+      isRecording = false;
+      toggleRecordingText.textContent = "Start Recording";
+      recordingIndicator.classList.remove("active");
+    }
+    
+    return null;
   }
 }
 
-// Start silence detection to automatically transcribe during gaps
+// Start silence detection
 function startSilenceDetection() {
-  // This is a mock implementation since we can't directly measure audio levels from JS
-  // In a real implementation, we would need to periodically check audio levels from Rust
+  // Clear any existing interval
+  if (audioLevelCheckInterval) {
+    clearInterval(audioLevelCheckInterval);
+  }
   
-  // For now, we'll just set a timer to transcribe every 10 seconds
-  silenceTimer = setInterval(async () => {
-    if (isRecording) {
-      console.log("Detected silence, transcribing...");
-      
-      // Temporarily stop recording
-      isRecording = false;
-      
-      try {
-        // Get transcription without updating UI
-        const transcript = await stopRecording(false);
-        
-        // If we got a meaningful transcript, display it
-        if (transcript && !transcript.includes("No speech detected") && 
-            !transcript.includes("Audio too short") && 
-            !transcript.includes("[BLANK_AUDIO]")) {
-          appendTranscript(transcript);
-        }
-        
-        // Resume recording
-        if (isSystemAudio) {
-          await invoke("start_recording_system");
-        } else {
-          await invoke("start_recording");
-        }
-        isRecording = true;
-      } catch (error) {
-        console.error("Error during automatic transcription:", error);
-        // Try to resume recording
-        try {
-          if (isSystemAudio) {
-            await invoke("start_recording_system");
-          } else {
-            await invoke("start_recording");
+  // Set up interval to check audio level
+  audioLevelCheckInterval = setInterval(() => {
+    // This is a placeholder for actual audio level detection
+    // In a real implementation, you would get this from the audio stream
+    const currentAudioLevel = Math.random(); // Simulate random audio level
+    
+    // Check if audio level is below threshold (silence)
+    if (currentAudioLevel < 0.1) {
+      // If we were previously not in silence, start the timer
+      if (lastAudioLevel >= 0.1 && !silenceTimer) {
+        console.log("Silence detected, starting timer...");
+        silenceTimer = setTimeout(async () => {
+          // If we're still recording, transcribe the current audio
+          if (isRecording) {
+            console.log("Silence timeout reached, processing audio...");
+            // Stop recording temporarily without updating UI
+            const transcript = await stopRecording(false);
+            
+            // If we got a transcript, restart recording
+            if (transcript) {
+              console.log("Transcript received, restarting recording");
+              await startRecording();
+            }
           }
-          isRecording = true;
-        } catch (resumeError) {
-          // If we can't resume, update UI to stopped state
-          toggleRecordingBtn.classList.remove("active");
-          toggleRecordingText.textContent = "Start Recording";
-          showErrorMessage("Recording stopped due to an error");
-        }
+          
+          // Clear the timer
+          silenceTimer = null;
+        }, silenceTimeout);
+      }
+    } else {
+      // If we're not in silence, clear any existing timer
+      if (silenceTimer) {
+        console.log("Speech detected, clearing silence timer");
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
       }
     }
-  }, 10000); // Check every 10 seconds
+    
+    // Update last audio level
+    lastAudioLevel = currentAudioLevel;
+  }, 100); // Check every 100ms
 }
 
 // Stop silence detection
 function stopSilenceDetection() {
-  if (silenceTimer) {
-    clearInterval(silenceTimer);
-    silenceTimer = null;
-  }
-  
+  // Clear interval
   if (audioLevelCheckInterval) {
     clearInterval(audioLevelCheckInterval);
     audioLevelCheckInterval = null;
   }
+  
+  // Clear timer
+  if (silenceTimer) {
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
 }
 
-// Append text to the transcript with proper formatting
+// Append transcript to the UI
 function appendTranscript(text, isSystem = false) {
-  if (!text || text.trim() === "") return;
+  // Create a new transcript entry
+  const entry = document.createElement("div");
+  entry.className = "transcript-entry";
   
-  // Format timestamp
+  // Add timestamp
+  const timestamp = document.createElement("div");
+  timestamp.className = "timestamp";
   const now = new Date();
-  const timestamp = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+  timestamp.textContent = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
   
-  // Add new transcript with timestamp
-  const newEntry = document.createElement("div");
-  newEntry.className = "transcript-entry";
+  // Add text
+  const content = document.createElement("div");
+  content.className = "content";
+  content.textContent = text;
   
-  const timestampSpan = document.createElement("span");
-  timestampSpan.className = "timestamp";
-  timestampSpan.textContent = timestamp;
+  // If this is a system message, add special styling
+  if (isSystem) {
+    entry.classList.add("system-message");
+  }
   
-  const textSpan = document.createElement("span");
-  textSpan.className = isSystem ? "system-message" : "transcript-text";
-  textSpan.textContent = text;
-  
-  newEntry.appendChild(timestampSpan);
-  newEntry.appendChild(textSpan);
+  // Assemble entry
+  entry.appendChild(timestamp);
+  entry.appendChild(content);
   
   // Add to transcript
-  transcriptEl.appendChild(newEntry);
+  transcriptEl.appendChild(entry);
   
   // Scroll to bottom
   transcriptEl.scrollTop = transcriptEl.scrollHeight;
 }
 
+// Append diarized transcript to the UI
+function appendDiarizedTranscript(text) {
+  // Split the text into lines
+  const lines = text.split('\n');
+  
+  // Map to store speaker IDs to consistent color indices
+  const speakerColorMap = new Map();
+  let nextColorIndex = 0;
+  
+  // Process each line
+  for (const line of lines) {
+    if (line.trim() === '') continue;
+    
+    // Check if line has speaker format (Speaker: text)
+    const match = line.match(/^([^:]+):\s*(.+)$/);
+    if (match) {
+      const speakerId = match[1].trim();
+      const speakerText = match[2].trim();
+      
+      // Assign a consistent color index to this speaker
+      if (!speakerColorMap.has(speakerId)) {
+        speakerColorMap.set(speakerId, nextColorIndex % 8); // 8 colors available
+        nextColorIndex++;
+      }
+      
+      const colorIndex = speakerColorMap.get(speakerId);
+      
+      // Create a new transcript entry
+      const entry = document.createElement("div");
+      entry.className = "transcript-entry diarized";
+      entry.dataset.colorIndex = colorIndex; // Store color index as data attribute
+      
+      // Add timestamp
+      const timestamp = document.createElement("div");
+      timestamp.className = "timestamp";
+      const now = new Date();
+      timestamp.textContent = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      
+      // Add speaker label
+      const speaker = document.createElement("div");
+      speaker.className = "speaker-label";
+      speaker.style.color = `var(--discord-speaker${colorIndex + 1})`;
+      speaker.textContent = speakerId;
+      speaker.dataset.speakerId = speakerId;
+      
+      // Add rename button
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "rename-button";
+      renameBtn.textContent = "✏️";
+      renameBtn.title = "Rename speaker";
+      renameBtn.addEventListener("click", () => openSpeakerRenameModal(speakerId));
+      
+      // Add text
+      const content = document.createElement("div");
+      content.className = "content";
+      content.textContent = speakerText;
+      
+      // Assemble entry
+      speaker.appendChild(renameBtn);
+      entry.appendChild(timestamp);
+      entry.appendChild(speaker);
+      entry.appendChild(content);
+      
+      // Add to transcript
+      transcriptEl.appendChild(entry);
+    } else {
+      // Regular transcript line
+      appendTranscript(line);
+    }
+  }
+  
+  // Scroll to bottom
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+// Open speaker rename modal
+function openSpeakerRenameModal(speakerId) {
+  // Set current speaker ID as data attribute
+  speakerRenameForm.dataset.speakerId = speakerId;
+  
+  // Set current name as default value
+  const currentName = currentSpeakers.get(speakerId) || speakerId;
+  speakerRenameInput.value = currentName;
+  
+  // Show modal
+  speakerRenameModal.style.display = 'block';
+  
+  // Focus input
+  speakerRenameInput.focus();
+}
+
+// Handle speaker rename form submission
+async function handleSpeakerRename(event) {
+  event.preventDefault();
+  
+  const speakerId = speakerRenameForm.dataset.speakerId;
+  const newName = speakerRenameInput.value.trim();
+  
+  if (!newName) return;
+  
+  try {
+    // Call backend to rename speaker
+    const updatedSpeaker = await invoke("rename_speaker", { speakerId, newName });
+    
+    // Update local map
+    currentSpeakers.set(speakerId, updatedSpeaker.name);
+    
+    // Update UI
+    document.querySelectorAll(`.speaker-label[data-speaker-id="${speakerId}"]`).forEach(label => {
+      label.textContent = updatedSpeaker.name;
+      
+      // Re-add the rename button
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "rename-button";
+      renameBtn.textContent = "✏️";
+      renameBtn.title = "Rename speaker";
+      renameBtn.addEventListener("click", () => openSpeakerRenameModal(speakerId));
+      
+      label.appendChild(renameBtn);
+    });
+    
+    // Hide modal
+    speakerRenameModal.style.display = 'none';
+    
+    showStatusMessage(`Renamed ${speakerId} to ${updatedSpeaker.name}`);
+    
+    // Clear status after 3 seconds
+    setTimeout(clearStatusMessage, 3000);
+  } catch (error) {
+    console.error("Failed to rename speaker:", error);
+    showErrorMessage(`Failed to rename speaker: ${error}`);
+  }
+}
+
 // Show error message
 function showErrorMessage(message) {
   statusMessageEl.textContent = message;
-  statusMessageEl.className = "status-message error";
+  statusMessageEl.classList.add("error");
+  statusMessageEl.classList.add("visible");
 }
 
 // Show status message
 function showStatusMessage(message) {
   statusMessageEl.textContent = message;
-  statusMessageEl.className = "status-message success";
+  statusMessageEl.classList.remove("error");
+  statusMessageEl.classList.add("visible");
 }
 
 // Clear status message
 function clearStatusMessage() {
-  statusMessageEl.textContent = "";
-  statusMessageEl.className = "status-message";
+  statusMessageEl.classList.remove("visible");
 }
